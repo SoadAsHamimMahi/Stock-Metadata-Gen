@@ -73,7 +73,7 @@ export default function Preview({ row, platform }: { row: Row; platform: 'adobe'
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-start">
-        <h3 className="font-semibold text-text-primary">Preview & Validation</h3>
+        <h3 className="font-semibold text-text-primary">Preview &amp; Validation</h3>
         <div className={`px-3 py-1 rounded-lg text-xs font-medium ${
           isValid ? 'badge-success' : 'badge-error'
         }`}>

@@ -130,7 +130,7 @@ export default function BulkEditor({
                 >
                   <option value="prefix">Add Prefix to Title</option>
                   <option value="suffix">Add Suffix to Title</option>
-                  <option value="find_replace">Find & Replace in Title</option>
+                  <option value="find_replace">Find &amp; Replace in Title</option>
                   <option value="add_keywords">Add Keywords</option>
                   <option value="remove_keywords">Remove Keywords</option>
                 </select>
