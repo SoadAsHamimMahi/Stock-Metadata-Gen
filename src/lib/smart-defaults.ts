@@ -51,9 +51,10 @@ export function getSmartDefaults(
   }
   
   // Asset type specific adjustments
-  if (assetType === 'vector' || assetType === 'illustration') {
+  const currentAssetType = defaults.assetType;
+  if (currentAssetType === 'vector' || currentAssetType === 'illustration' || currentAssetType === '3d' || currentAssetType === 'icon') {
     defaults.keywordCount = Math.min((defaults.keywordCount || 30), 30);
-  } else if (assetType === 'video') {
+  } else if (currentAssetType === 'video') {
     defaults.keywordCount = Math.max((defaults.keywordCount || 30), 40);
   }
   

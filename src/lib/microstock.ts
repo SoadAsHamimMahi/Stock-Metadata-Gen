@@ -259,7 +259,7 @@ function sanitize(out: any): AdobeOut {
   
   // Remove generic terms from keywords
   const genericTerms = new Set(['commercial', 'stock', 'image', 'photo', 'picture', 'photograph', 'illustration', 'file', 'asset', 'generated', 'gemini', 'mistral']);
-  kws = kws.filter(k => !genericTerms.has(k) && k.length > 1 && !/^\d+$/.test(k));
+  kws = kws.filter((k: string) => !genericTerms.has(k) && k.length > 1 && !/^\d+$/.test(k));
 
   // uniqueness & cap to 49
   const seen = new Set<string>();

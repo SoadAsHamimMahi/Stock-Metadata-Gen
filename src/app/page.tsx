@@ -67,6 +67,56 @@ export default function Page() {
 
   const bearerRef = useRef<string>('');
   
+  // Wrapper function to ensure all required fields are present when updating form
+  const handleFormChange = useCallback((newForm: FormState | ((prev: FormState) => FormState)) => {
+    if (typeof newForm === 'function') {
+      setForm(prev => {
+        const updated = newForm(prev);
+        return {
+          ...prev,
+          ...updated,
+          model: {
+            ...prev.model,
+            ...updated.model,
+            preview: updated.model.preview ?? prev.model.preview ?? false
+          },
+          videoHints: {
+            style: updated.videoHints?.style ?? prev.videoHints.style,
+            tech: updated.videoHints?.tech ?? prev.videoHints.tech
+          },
+          negativeTitle: updated.negativeTitle ?? prev.negativeTitle,
+          negativeKeywords: updated.negativeKeywords ?? prev.negativeKeywords,
+          isolatedOnTransparentBackground: updated.isolatedOnTransparentBackground ?? prev.isolatedOnTransparentBackground,
+          isolatedOnWhiteBackground: updated.isolatedOnWhiteBackground ?? prev.isolatedOnWhiteBackground,
+          isVector: updated.isVector ?? prev.isVector,
+          isIllustration: updated.isIllustration ?? prev.isIllustration,
+          singleMode: updated.singleMode ?? prev.singleMode
+        };
+      });
+    } else {
+      setForm(prev => ({
+        ...prev,
+        ...newForm,
+        model: {
+          ...prev.model,
+          ...newForm.model,
+          preview: newForm.model.preview ?? prev.model.preview ?? false
+        },
+        videoHints: {
+          style: newForm.videoHints?.style ?? prev.videoHints.style,
+          tech: newForm.videoHints?.tech ?? prev.videoHints.tech
+        },
+        negativeTitle: newForm.negativeTitle ?? prev.negativeTitle,
+        negativeKeywords: newForm.negativeKeywords ?? prev.negativeKeywords,
+        isolatedOnTransparentBackground: newForm.isolatedOnTransparentBackground ?? prev.isolatedOnTransparentBackground,
+        isolatedOnWhiteBackground: newForm.isolatedOnWhiteBackground ?? prev.isolatedOnWhiteBackground,
+        isVector: newForm.isVector ?? prev.isVector,
+        isIllustration: newForm.isIllustration ?? prev.isIllustration,
+        singleMode: newForm.singleMode ?? prev.singleMode
+      }));
+    }
+  }, []);
+  
   // Load bearer token based on current provider
   const updateBearerToken = useCallback(async () => {
     try {
@@ -831,16 +881,35 @@ export default function Page() {
               <div className="flex gap-2">
                 <TemplateManager 
                   currentForm={form} 
-                  onApplyTemplate={(template: FormState) => setForm(template)} 
+                  onApplyTemplate={(template: FormState) => setForm({
+                    ...form,
+                    ...template,
+                    model: {
+                      ...form.model,
+                      ...template.model,
+                      preview: template.model.preview ?? false
+                    },
+                    videoHints: {
+                      style: template.videoHints?.style ?? [],
+                      tech: template.videoHints?.tech ?? []
+                    },
+                    negativeTitle: template.negativeTitle ?? [],
+                    negativeKeywords: template.negativeKeywords ?? [],
+                    isolatedOnTransparentBackground: template.isolatedOnTransparentBackground ?? false,
+                    isolatedOnWhiteBackground: template.isolatedOnWhiteBackground ?? false,
+                    isVector: template.isVector ?? false,
+                    isIllustration: template.isIllustration ?? false,
+                    singleMode: template.singleMode ?? false
+                  })} 
                 />
                 <Analytics />
                 <HistoryViewer onRestore={(rows) => setRows(rows)} />
               </div>
             </div>
-            <APIControls value={form} onChange={setForm} />
+            <APIControls value={form} onChange={handleFormChange} />
           </div>
           <div className="card p-6">
-            <AdvancedMetadataControls value={form} onChange={setForm} />
+            <AdvancedMetadataControls value={form} onChange={handleFormChange} />
           </div>
           <div className="p-4 bg-gradient-to-r from-green-accent/10 to-teal-accent/10 rounded-lg border border-green-accent/20">
             <p className="text-xs text-text-secondary font-medium">

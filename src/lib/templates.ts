@@ -94,7 +94,11 @@ export function createDefaultTemplates(): Template[] {
         negativeTitle: [],
         negativeKeywords: [],
         singleMode: false,
-        videoHints: { style: [], tech: [] }
+        videoHints: { style: [], tech: [] },
+        isolatedOnTransparentBackground: false,
+        isolatedOnWhiteBackground: false,
+        isVector: false,
+        isIllustration: false
       }
     },
     {
@@ -112,7 +116,11 @@ export function createDefaultTemplates(): Template[] {
         negativeTitle: [],
         negativeKeywords: [],
         singleMode: false,
-        videoHints: { style: [], tech: [] }
+        videoHints: { style: [], tech: [] },
+        isolatedOnTransparentBackground: false,
+        isolatedOnWhiteBackground: false,
+        isVector: false,
+        isIllustration: false
       }
     },
     {
@@ -130,7 +138,11 @@ export function createDefaultTemplates(): Template[] {
         negativeTitle: [],
         negativeKeywords: [],
         singleMode: false,
-        videoHints: { style: [], tech: [] }
+        videoHints: { style: [], tech: [] },
+        isolatedOnTransparentBackground: false,
+        isolatedOnWhiteBackground: false,
+        isVector: false,
+        isIllustration: false
       }
     }
   ];

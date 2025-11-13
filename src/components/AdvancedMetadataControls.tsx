@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { clamp, sanitizeWords } from '@/lib/util';
 import type { FormState } from '@/lib/types';
 
-export default function AdvancedMetadataControls({ value, onChange }: { value: FormState; onChange: (v: FormState) => void }) {
+export default function AdvancedMetadataControls({ value, onChange }: { value: FormState; onChange: (v: FormState | ((prev: FormState) => FormState)) => void }) {
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<'metadata'|'prompt'>('metadata');
   const [showPrefix, setShowPrefix] = useState(false);

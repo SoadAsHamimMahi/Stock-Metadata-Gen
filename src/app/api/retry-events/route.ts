@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server';
 import { retryTracker } from '@/lib/retry-tracker';
 
+// Force dynamic rendering - this is an SSE endpoint that cannot be statically generated
+export const dynamic = 'force-dynamic';
+
 // Server-Sent Events endpoint for real-time retry updates
 export async function GET(req: NextRequest) {
   // Create a readable stream for SSE

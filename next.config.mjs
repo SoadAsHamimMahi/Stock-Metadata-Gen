@@ -8,6 +8,8 @@ const nextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
   },
+  // Handle font loading failures gracefully
+  optimizeFonts: true,
 };
 
 export default nextConfig;

@@ -5,7 +5,7 @@ import KeyModal from '@/components/KeyModal';
 import { getDecryptedJSON } from '@/lib/util';
 import type { FormState } from '@/lib/types';
 
-export default function APIControls({ value, onChange }: { value: FormState; onChange: (v: FormState) => void }) {
+export default function APIControls({ value, onChange }: { value: FormState; onChange: (v: FormState | ((prev: FormState) => FormState)) => void }) {
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'>(value.model.provider);
 
@@ -16,7 +16,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
   useEffect(() => {
     // Load active provider from stored keys
     (async () => {
-      const enc = await getDecryptedJSON<{ active?: 'gemini'|'mistral' }>('smg_keys_enc', null);
+      const enc = await getDecryptedJSON<{ active?: 'gemini'|'mistral' } | null>('smg_keys_enc', null);
       if (enc?.active) {
         setActiveProvider(enc.active);
       }

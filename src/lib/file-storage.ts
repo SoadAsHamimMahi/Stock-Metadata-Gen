@@ -66,7 +66,7 @@ export async function saveFiles(files: File[]): Promise<void> {
       });
     }
 
-    transaction.complete;
+    // Transaction will complete automatically when all operations finish
   } catch (error) {
     console.error('Failed to save files to IndexedDB:', error);
     throw error;
