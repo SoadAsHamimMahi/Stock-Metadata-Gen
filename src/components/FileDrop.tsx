@@ -457,7 +457,7 @@ function FileCard({
       setTitleAnimated(false);
       prevTitleRef.current = '';
     }
-  }, [row?.title, titleAnimated]);
+  }, [row, row?.title, titleAnimated]);
 
   // Progressive keyword reveal with animation
   useEffect(() => {
@@ -493,7 +493,7 @@ function FileCard({
     } else {
       setRevealedKeywords([]);
     }
-  }, [row?.keywords, isGenerating]);
+  }, [row, row?.keywords, isGenerating]);
 
   const getPreviewUrl = () => file.url;
 

@@ -205,7 +205,7 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
                 <span className="text-2xl">✨</span>
                 <div className="flex-1 text-left">
                   <div className="font-bold mb-1">Google Gemini</div>
-                  <div className="text-xs text-white/70">Google's advanced AI model for text and image analysis</div>
+                  <div className="text-xs text-white/70">Google&apos;s advanced AI model for text and image analysis</div>
                   <div className="flex items-center justify-between mt-2 text-xs">
                     <span>{geminiKeys.length} key{geminiKeys.length !== 1 ? 's' : ''} stored</span>
                     {geminiKeys.length > 0 && <span className="text-green-400">Active</span>}
@@ -242,7 +242,7 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
             {activeProvider === 'gemini' ? 'Google Gemini' : 'Mistral AI'} API Keys
           </label>
           {activeProvider === 'gemini' && (
-            <p className="text-xs text-white/70 mb-2">Gemini API keys should start with "AIza"</p>
+            <p className="text-xs text-white/70 mb-2">Gemini API keys should start with &quot;AIza&quot;</p>
           )}
           <div className="flex gap-2">
             <input
