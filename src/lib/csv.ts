@@ -7,6 +7,7 @@ export type Row = {
   keywords: string[];
   assetType: 'photo'|'illustration'|'vector'|'3d'|'icon'|'video';
   extension: string;
+  error?: string; // Optional error message for failed generations
 };
 
 export function toCSV(rows: Row[], titleLen: number, descLen: number, kwCount: number) {
