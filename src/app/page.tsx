@@ -844,7 +844,7 @@ export default function Page() {
           </div>
           <div className="p-4 bg-gradient-to-r from-green-accent/10 to-teal-accent/10 rounded-lg border border-green-accent/20">
             <p className="text-xs text-text-secondary font-medium">
-              Helper: Files are saved in <code className="px-1.5 py-0.5 bg-green-accent/20 rounded border border-green-accent/30 text-green-bright font-bold">/public/uploads</code>. "Clear All" removes them.
+              Helper: Files are saved in <code className="px-1.5 py-0.5 bg-green-accent/20 rounded border border-green-accent/30 text-green-bright font-bold">/public/uploads</code>. &quot;Clear All&quot; removes them.
             </p>
           </div>
         </div>
