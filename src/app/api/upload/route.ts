@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * This route is kept for backward compatibility but returns a deprecation warning.
  */
 export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const maxDuration = 10; // Vercel limit: 10s (free) / 60s (pro)
 
 export async function POST(req: NextRequest) {
   // Return deprecation message
