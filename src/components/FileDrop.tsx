@@ -246,7 +246,7 @@ export default function FileDrop({
         {files.length === 0 ? (
           <>
             <div className="text-4xl mb-4 animate-float">📁</div>
-            <div className="text-lg font-bold text-text-primary mb-2">Drag & drop files here</div>
+            <div className="text-lg font-bold text-text-primary mb-2">Drag &amp; drop files here</div>
             <div className="text-sm text-text-secondary mb-1">or click to select</div>
               <div className="text-xs text-text-tertiary mt-2">
               Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
