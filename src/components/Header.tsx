@@ -31,8 +31,8 @@ export default function Header({ onExportCSV, hasRows = false }: HeaderProps) {
             🐦
           </div>
           <div>
-            <div className="text-xl font-bold tracking-tight text-gradient">Stock Metadata Generator</div>
-            <div className="text-xs text-text-tertiary font-medium">Stock Metadata Generator</div>
+            <div className="text-xl font-bold tracking-tight text-gradient">CSVMest</div>
+            <div className="text-xs text-text-tertiary font-medium">CSVMest</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
