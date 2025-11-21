@@ -585,48 +585,6 @@ function FileCard({
                 </div>
               )}
             </div>
-          {/* Per-card Generate/Regenerate Button */}
-          <div className="mt-3 w-full">
-            <button
-              type="button"
-              data-testid={`generate-button-${file.name}`}
-              className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-300 ${
-                isGenerating 
-                  ? 'opacity-75 cursor-not-allowed bg-gray-600 text-gray-400' 
-                  : row 
-                    ? 'bg-teal-accent hover:bg-green-accent text-white shadow-teal-glow hover:shadow-teal-glow-lg' 
-                    : 'bg-green-accent hover:bg-green-bright text-white shadow-green-glow hover:shadow-green-glow-lg'
-              }`}
-              style={{
-                display: 'flex',
-                minHeight: '40px',
-                visibility: 'visible',
-                opacity: isGenerating ? 0.75 : 1
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('🔘 Generate button clicked for:', file.name, 'onRegenerate:', !!onRegenerate);
-                if (!isGenerating && onRegenerate) {
-                  onRegenerate(file.name);
-                }
-              }}
-              disabled={isGenerating || !onRegenerate}
-              title={row ? 'Regenerate metadata for this file' : 'Generate metadata for this file'}
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>{row ? 'Regenerating...' : 'Generating...'}</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-base">{row ? '🔄' : '✨'}</span>
-                  <span>{row ? 'Regenerate' : 'Generate'}</span>
-                </>
-              )}
-            </button>
-          </div>
           </div>
         </div>
 
