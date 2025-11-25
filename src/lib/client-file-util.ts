@@ -3,7 +3,7 @@
 
 const MAX_DIMENSION = 2048; // Max width or height for compression
 const QUALITY = 0.85; // JPEG/WebP quality (0-1)
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB
 
 /**
  * Convert a File object to a base64 data URL

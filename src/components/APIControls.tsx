@@ -39,8 +39,8 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg">⚙️</span>
-          <h2 className="text-lg font-bold text-text-primary">Generation Controls</h2>
+          <span className="text-xl">⚙️</span>
+          <h2 className="text-xl font-extrabold text-text-primary tracking-tight">Generation Controls</h2>
         </div>
         <button
           onClick={() => setKeyModalOpen(true)}
@@ -55,8 +55,8 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
       </div>
 
       <div className="space-y-4">
-        <div>
-          <div className="label mb-2">Model Provider</div>
+        <div className="pb-4 border-b border-green-accent/20">
+          <div className="label mb-2 text-text-primary">Model Provider</div>
           <div className="flex gap-2">
             <button 
               className={`tab ${value.model.provider==='gemini'?'tab-active':'tab-inactive'}`} 
@@ -73,39 +73,41 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           </div>
         </div>
 
-        <div className="space-y-3">
-          <label className="inline-flex items-center gap-2 cursor-pointer group">
+        <div className="space-y-4">
+          <label className="inline-flex items-start gap-3 cursor-pointer group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors">
             <input 
               type="checkbox" 
               checked={!!value.model.preview} 
               onChange={(e) => setNested('model', 'preview', e.target.checked)}
-              className="w-4 h-4"
+              className="w-5 h-5 mt-0.5"
             />
             <div className="flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg">✨</span>
-                <span className="text-sm font-medium">Use Gemini Preview Model</span>
+                <span className="text-base font-semibold text-text-primary">Use Gemini Preview Model</span>
               </div>
-              <p className="text-xs text-text-tertiary mt-1">
-                Enable for potentially higher success rate. Default is Gemini 2.0 Flash.
+              <p className="text-sm text-text-secondary mt-1.5 flex items-start gap-1.5">
+                <span className="text-green-bright">💡</span>
+                <span>Use Gemini 1.5 Pro (slower, higher quality) instead of Gemini 2.0 Flash (faster, default). Enable for better results when quality is more important than speed.</span>
               </p>
             </div>
           </label>
 
-          <label className="inline-flex items-center gap-2 cursor-pointer group">
+          <label className="inline-flex items-start gap-3 cursor-pointer group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors">
             <input 
               type="checkbox" 
               checked={value.singleMode} 
               onChange={(e) => set('singleMode', e.target.checked)}
-              className="w-4 h-4"
+              className="w-5 h-5 mt-0.5"
             />
             <div className="flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg">📦</span>
-                <span className="text-sm font-medium">Single Generation Mode</span>
+                <span className="text-base font-semibold text-text-primary">Single Generation Mode</span>
               </div>
-              <p className="text-xs text-text-tertiary mt-1">
-                Process one item at a time. Slower but helps avoid API overload.
+              <p className="text-sm text-text-secondary mt-1.5 flex items-start gap-1.5">
+                <span className="text-green-bright">💡</span>
+                <span>Process files one at a time (slower but prevents API rate limits). Use when processing many files or getting rate limit errors.</span>
               </p>
             </div>
           </label>

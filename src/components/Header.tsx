@@ -28,7 +28,7 @@ export default function Header({ onExportCSV, hasRows = false }: HeaderProps) {
             🐦
           </div>
           <div>
-            <div className="text-3xl font-extrabold tracking-normal text-gradient font-space-grotesk">CSVMest</div>
+            <div className="text-4xl font-extrabold tracking-tight text-white font-space-grotesk leading-tight">StockCSV</div>
             <div className="text-sm text-text-secondary font-medium tracking-wide font-space-grotesk">AI-Powered Stock Metadata Generator</div>
           </div>
         </div>

@@ -21,7 +21,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'stock-metadata-gen',
+  title: 'StockCSV - AI-Powered Stock Metadata Generator',
   description: 'Generate platform-ready stock metadata from filenames and assets'
 };
 

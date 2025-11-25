@@ -111,7 +111,27 @@ body::before {
   @apply border-green-accent shadow-green-glow;
 }
 .label {
-  @apply text-sm font-bold text-text-secondary mb-1.5 block;
+  @apply text-base font-semibold text-text-primary mb-1.5 block;
+}
+
+/* Section titles */
+.section-title {
+  @apply text-xl font-extrabold text-text-primary tracking-tight;
+}
+
+/* Help text */
+.help-text {
+  @apply text-sm text-text-secondary leading-relaxed;
+}
+
+/* Control groups */
+.control-group {
+  @apply p-4 bg-dark-surface/20 rounded-lg border border-green-accent/10;
+}
+
+/* Tooltip trigger */
+.tooltip-trigger {
+  @apply relative cursor-help;
 }
 
 /* Tabs */

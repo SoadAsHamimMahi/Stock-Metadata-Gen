@@ -7,6 +7,7 @@ import FileDrop from '@/components/FileDrop';
 import ResultTable from '@/components/ResultTable';
 import ErrorToastComponent, { type ErrorToast } from '@/components/ErrorToast';
 import Analytics from '@/components/Analytics';
+import CompletionModal, { type CompletionStats } from '@/components/CompletionModal';
 import { toCSV } from '@/lib/csv';
 import { createVectorFormatExcel } from '@/lib/excel';
 import { getJSON, setJSON, getDecryptedJSON } from '@/lib/util';
@@ -38,6 +39,8 @@ export default function Page() {
   const [generatingFiles, setGeneratingFiles] = useState<Set<string>>(new Set());
   const [retryingFiles, setRetryingFiles] = useState<Map<string, { attempt: number; maxAttempts: number; errorType?: string }>>(new Map());
   const [error, setError] = useState<ErrorToast | null>(null);
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [completionStats, setCompletionStats] = useState<CompletionStats | null>(null);
 
   const [form, setForm] = useState({
     platform: 'shutterstock' as 'adobe' | 'freepik' | 'shutterstock',
@@ -258,9 +261,13 @@ export default function Page() {
       return;
     }
     
+    // Track start time for completion modal
+    const startTime = Date.now();
+    
     setBusy(true);
     setShouldStop(false);
     setProcessingProgress(0);
+    setCompletionModalOpen(false); // Close any existing modal
     // Don't clear rows - preserve existing results and only update as new ones come in
     
     try {
@@ -569,16 +576,22 @@ export default function Page() {
       setProcessingProgress(100);
       setGeneratingFiles(new Set()); // Clear all generating files
       
+      // Calculate completion stats
+      const endTime = Date.now();
+      const timeTaken = endTime - startTime;
+      const successCount = allRows.filter((r: Row) => !r.error).length;
+      const errorCount = allRows.length - successCount;
+      
+      // Calculate average quality score
+      const qualityScores = allRows
+        .filter((r: Row) => !r.error && r.title)
+        .map((r: Row) => scoreTitleQuality(r.title || '', r.filename || '', form.titleLen, true, form.platform).score);
+      const avgQuality = qualityScores.length > 0 
+        ? qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length 
+        : undefined;
+      
       // Track analytics
       if (allRows.length > 0) {
-        const successCount = allRows.filter((r: Row) => !r.error).length;
-        const errorCount = allRows.length - successCount;
-        const qualityScores = allRows
-          .filter((r: Row) => !r.error && r.title)
-          .map((r: Row) => scoreTitleQuality(r.title || '', r.filename || '', form.titleLen, true, form.platform).score);
-        const avgQuality = qualityScores.length > 0 
-          ? qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length 
-          : 0;
         const avgTitleLength = allRows
           .filter((r: Row) => !r.error && r.title)
           .reduce((sum: number, r: Row) => sum + (r.title?.length || 0), 0) / successCount || 0;
@@ -593,14 +606,31 @@ export default function Page() {
             fileCount: files.length,
             successCount,
             errorCount,
-            avgQualityScore: avgQuality,
+            avgQualityScore: avgQuality || 0,
             avgTitleLength: Math.round(avgTitleLength),
             avgKeywordCount: Math.round(avgKeywordCount),
             model: form.model.provider
           }
         });
+      }
+      
+      // Show completion modal only if generation completed (not stopped early)
+      if (!shouldStop && allRows.length > 0) {
+        const platformName = form.platform === 'adobe' ? 'Adobe' : form.platform === 'freepik' ? 'Freepik' : 'Shutterstock';
+        const modelName = form.model.provider === 'gemini' 
+          ? (form.model.preview ? 'Gemini 1.5 Pro' : 'Gemini 2.0 Flash')
+          : 'Mistral';
         
-        
+        setCompletionStats({
+          totalFiles: files.length,
+          successCount,
+          errorCount,
+          timeTaken,
+          platform: platformName,
+          model: modelName,
+          avgQualityScore: avgQuality
+        });
+        setCompletionModalOpen(true);
       }
     } catch (e: any) {
       console.error(e);
@@ -938,29 +968,92 @@ export default function Page() {
   return (
     <>
       <ErrorToastComponent error={error} onDismiss={() => setError(null)} />
+      <CompletionModal 
+        open={completionModalOpen} 
+        onClose={() => setCompletionModalOpen(false)}
+        stats={completionStats}
+        onExportCSV={onExportCSV}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-4 sm:gap-6 animate-fade-in">
         {/* Left Sidebar - Settings */}
         <div className="space-y-6">
-          <div className="card p-6">
+          {/* Quick Start Guide */}
+          <div className="card p-6 bg-gradient-to-br from-green-accent/5 to-teal-accent/5 border-green-accent/30">
+            <details className="group">
+              <summary className="flex items-center justify-between cursor-pointer list-none">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🚀</span>
+                  <h3 className="text-lg font-extrabold text-text-primary tracking-tight">Quick Start Guide</h3>
+                </div>
+                <span className="text-green-bright text-lg transition-transform group-open:rotate-180">▼</span>
+              </summary>
+              <div className="mt-4 pt-4 border-t border-green-accent/20 space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-green-bright font-bold text-lg flex-shrink-0">1.</span>
+                  <div>
+                    <div className="text-sm font-semibold text-text-primary mb-1">Upload Files</div>
+                    <div className="text-sm text-text-secondary">Drag and drop or click to upload your images/videos (PNG, JPG, SVG, MP4, etc.)</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-green-bright font-bold text-lg flex-shrink-0">2.</span>
+                  <div>
+                    <div className="text-sm font-semibold text-text-primary mb-1">Configure Settings</div>
+                    <div className="text-sm text-text-secondary">Select export platform (Adobe, Shutterstock, etc.), adjust metadata length, and set file type attributes</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-green-bright font-bold text-lg flex-shrink-0">3.</span>
+                  <div>
+                    <div className="text-sm font-semibold text-text-primary mb-1">Generate Metadata</div>
+                    <div className="text-sm text-text-secondary">Click "Generate All" to process all files, or use individual "Generate" buttons to test one file first</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-green-bright font-bold text-lg flex-shrink-0">4.</span>
+                  <div>
+                    <div className="text-sm font-semibold text-text-primary mb-1">Export Results</div>
+                    <div className="text-sm text-text-secondary">Use "Export CSV" for standard format, or "Export ZIP (Excel)" for vector files (SVG) to get 3 Excel files (AI, EPS, SVG)</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+          <div className="card p-8">
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-green-accent/20">
-              <h2 className="text-xl font-bold text-text-primary">Settings</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⚙️</span>
+                <h2 className="text-2xl font-extrabold text-text-primary tracking-tight">Settings</h2>
+              </div>
               <div className="flex gap-2">
                 <Analytics />
               </div>
             </div>
             <APIControls value={form} onChange={handleFormChange} />
           </div>
-          <div className="card p-6">
+          <div className="card p-8">
             <AdvancedMetadataControls value={form} onChange={handleFormChange} />
           </div>
-          <div className="p-4 bg-gradient-to-r from-green-accent/10 to-teal-accent/10 rounded-lg border border-green-accent/20">
-            <p className="text-xs text-text-secondary font-medium mb-2">
-              {/* eslint-disable-next-line react/no-unescaped-entities */}
-              Helper: Files are saved in <code className="px-1.5 py-0.5 bg-green-accent/20 rounded border border-green-accent/30 text-green-bright font-bold">/public/uploads</code>. &ldquo;Clear All&rdquo; removes them.
-            </p>
-            <p className="text-xs text-text-secondary font-medium">
-              <strong className="text-green-bright">SVG Export:</strong> For SVG uploads, use &ldquo;Export ZIP (Excel)&rdquo; to get 3 Excel files (AI, EPS, SVG) bundled in a ZIP file for Adobe Stock.
-            </p>
+          <div className="p-5 bg-gradient-to-r from-green-accent/10 to-teal-accent/10 rounded-lg border border-green-accent/20">
+            <div className="flex items-start gap-2 mb-3">
+              <span className="text-lg">💡</span>
+              <h3 className="text-sm font-bold text-text-primary">Quick Tips</h3>
+            </div>
+            <div className="space-y-2 text-sm text-text-secondary">
+              <p className="flex items-start gap-2">
+                <span className="text-green-bright">📁</span>
+                <span>
+                  {/* eslint-disable-next-line react/no-unescaped-entities */}
+                  Files are saved in <code className="px-1.5 py-0.5 bg-green-accent/20 rounded border border-green-accent/30 text-green-bright font-bold">/public/uploads</code>. &ldquo;Clear All&rdquo; removes them.
+                </span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-green-bright">📦</span>
+                <span>
+                  <strong className="text-green-bright font-semibold">SVG Export:</strong> For SVG uploads, use &ldquo;Export ZIP (Excel)&rdquo; to get 3 Excel files (AI, EPS, SVG) bundled in a ZIP file for Adobe Stock.
+                </span>
+              </p>
+            </div>
           </div>
         </div>
 

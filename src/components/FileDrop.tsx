@@ -253,7 +253,7 @@ export default function FileDrop({
               <div className="text-xs text-text-tertiary mt-2">
               Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
             </div>
-            <div className="text-xs text-text-tertiary">Max 50MB per file</div>
+            <div className="text-xs text-text-tertiary">Max 150MB per file</div>
           </>
         ) : (
           <>
@@ -288,6 +288,7 @@ export default function FileDrop({
             className={`btn text-base px-6 py-3 flex items-center gap-2 ${(!files.length || generating) ? 'btn-disabled' : ''}`}
             onClick={onGenerateAll}
             disabled={!files.length || generating}
+            title="Process all uploaded files at once (faster for multiple files)"
           >
             <span>✨</span>
             {generating ? (
@@ -307,6 +308,7 @@ export default function FileDrop({
                 className={`btn btn-secondary text-sm flex items-center gap-1 ${!canRegenerate ? 'btn-disabled' : ''}`}
                 onClick={onRegenerateAll}
                 disabled={!canRegenerate}
+                title="Regenerate metadata for all files (use after changing settings)"
               >
                 {generating && filesWithResults.length > 0 ? (
                   <>
@@ -335,6 +337,7 @@ export default function FileDrop({
               className={`btn btn-secondary text-sm flex items-center gap-1 ${!hasRows ? 'btn-disabled' : ''}`}
               onClick={onExportCSV}
               disabled={!hasRows}
+              title="Export all metadata as a single CSV file (standard format)"
             >
               <span>📥</span>
               Export CSV
@@ -726,6 +729,7 @@ function FileCard({
                 className={`btn text-sm flex items-center gap-1.5 ripple-effect ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
                 onClick={() => !isGenerating && onRegenerate(file.name)}
                 disabled={isGenerating}
+                title={row ? "Regenerate metadata for this file (use if you're not satisfied with results)" : "Process this single file (use when you want to test one file first)"}
               >
                 {isGenerating ? (
                   <>
