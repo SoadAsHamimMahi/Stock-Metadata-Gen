@@ -17,7 +17,7 @@ import { scoreTitleQuality } from '@/lib/util';
 import { getSmartDefaults } from '@/lib/smart-defaults';
 import type { Row } from '@/lib/csv';
 import type { FormState } from '@/lib/types';
-import { fileToBase64WithCompression, isImageFile } from '@/lib/client-file-util';
+import { fileToBase64WithCompression, isImageFile, isVideoFile } from '@/lib/client-file-util';
 import { retrySSEClient } from '@/lib/retry-sse';
 
 type UploadItem = { 
@@ -309,11 +309,13 @@ export default function Page() {
             const file = files[i];
             let imageData: string | undefined;
             
-            if (file.file && isImageFile(file.file)) {
+            if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
               try {
                 imageData = await fileToBase64WithCompression(file.file, true);
+                console.log(`✓ Extracted frame/image data for ${file.name}`);
               } catch (error) {
-                console.warn(`Failed to convert image to base64 for ${file.name}:`, error);
+                console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
+                // For videos, continue without imageData (fallback to filename-based)
               }
             }
             
@@ -333,7 +335,7 @@ export default function Page() {
                 type: f.type, 
                 url: f.url, 
                 ext: f.ext,
-                imageData: imageData // Include base64 data for images
+                imageData: imageData // Include base64 data for images/videos
               })),
               videoHints: form.assetType === 'video' ? form.videoHints : undefined,
               singleMode: true,
@@ -449,11 +451,13 @@ export default function Page() {
             const file = files[i];
             let imageData: string | undefined;
             
-            if (file.file && isImageFile(file.file)) {
+            if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
               try {
                 imageData = await fileToBase64WithCompression(file.file, true);
+                console.log(`✓ Extracted frame/image data for ${file.name}`);
               } catch (error) {
-                console.warn(`Failed to convert image to base64 for ${file.name}:`, error);
+                console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
+                // For videos, continue without imageData (fallback to filename-based)
               }
             }
             
@@ -473,7 +477,7 @@ export default function Page() {
                 type: f.type, 
                 url: f.url, 
                 ext: f.ext,
-                imageData: imageData // Include base64 data for images
+                imageData: imageData // Include base64 data for images/videos
               })),
               videoHints: form.assetType === 'video' ? form.videoHints : undefined,
               singleMode: true,
@@ -655,14 +659,16 @@ export default function Page() {
     });
     
     try {
-      // Convert file to base64 if it's an image (lazy conversion)
+      // Convert file to base64 if it's an image or video (lazy conversion)
       let imageData: string | undefined;
       
-      if (file.file && isImageFile(file.file)) {
+      if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
         try {
           imageData = await fileToBase64WithCompression(file.file, true);
+          console.log(`✓ Extracted frame/image data for ${file.name}`);
         } catch (error) {
-          console.warn(`Failed to convert image to base64 for ${file.name}:`, error);
+          console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
+          // For videos, continue without imageData (fallback to filename-based)
         }
       }
       
@@ -800,6 +806,19 @@ export default function Page() {
         setGeneratingFiles(prev => new Set(prev).add(file.name));
         
         try {
+          // Convert file to base64 if it's an image or video (lazy conversion)
+          let imageData: string | undefined;
+          
+          if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
+            try {
+              imageData = await fileToBase64WithCompression(file.file, true);
+              console.log(`✓ Extracted frame/image data for ${file.name}`);
+            } catch (error) {
+              console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
+              // For videos, continue without imageData (fallback to filename-based)
+            }
+          }
+          
           const requestPayload = {
             platform: form.platform,
             titleLen: form.titleLen,
@@ -811,7 +830,13 @@ export default function Page() {
             negativeTitle: form.negativeTitle,
             negativeKeywords: form.negativeKeywords,
             model: { provider: form.model.provider, preview: form.model.preview },
-            files: [file].map(f => ({ name: f.name, type: f.type, url: f.url, ext: f.ext })),
+            files: [file].map(f => ({ 
+              name: f.name, 
+              type: f.type, 
+              url: f.url, 
+              ext: f.ext,
+              imageData: imageData // Include base64 data for images/videos
+            })),
             videoHints: form.assetType === 'video' ? form.videoHints : undefined,
             isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
             isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,

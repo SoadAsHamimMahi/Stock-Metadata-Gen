@@ -335,6 +335,7 @@ export async function POST(req: NextRequest) {
       // Use imageData from request body (already base64 encoded from client)
       let imageData: string | undefined = f.imageData;
       const imageExts = ['png', 'jpg', 'jpeg', 'webp'];
+      const videoExts = ['mp4', 'mov', 'm4v', 'webm'];
       
       if (imageExts.includes(ext)) {
         if (imageData) {
@@ -353,8 +354,21 @@ export async function POST(req: NextRequest) {
         } else {
           console.warn(`⚠ No image data provided for ${f.name} (expected base64 data)`);
         }
+      } else if (videoExts.includes(ext)) {
+        if (imageData) {
+          // Validate video frame data
+          const imageSizeKB = Math.round(imageData.length / 1024);
+          console.log(`✓ Using extracted video frame for ${f.name} (${imageSizeKB}KB base64 encoded)`);
+          
+          // Validate format matches expected pattern
+          if (!imageData.match(/^data:image\/(jpeg|jpg);base64,/)) {
+            console.warn(`⚠ Video frame data format may be unexpected: ${imageData.substring(0, 50)}`);
+          }
+        } else {
+          console.warn(`⚠ No frame data extracted for ${f.name} - will use filename-based generation`);
+        }
       } else {
-        console.log(`ℹ Skipping image load for ${f.name} (not a supported image file: ${ext})`);
+        console.log(`ℹ Skipping image load for ${f.name} (not a supported image/video file: ${ext})`);
       }
 
       const args: ModelArgs = {

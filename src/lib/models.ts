@@ -61,10 +61,11 @@ const ASSET_TIPS = {
   video: 'Subject + action + setting; only TRUE tech tags if provided (e.g., 4k, 60fps, timelapse).'
 } as const;
 
-function rules(keywordCount: number, titleLen: number, hasImage: boolean = false, platform?: 'adobe' | 'freepik' | 'shutterstock') {
+function rules(keywordCount: number, titleLen: number, hasImage: boolean = false, platform?: 'adobe' | 'freepik' | 'shutterstock', isVideo?: boolean) {
   const imageInstructions = hasImage ? `
 CRITICAL: An image is provided. You MUST:
 1. Analyze the image carefully and describe what you actually see
+${isVideo ? '2. NOTE: This image is a frame extracted from a video - it represents the video content. Generate metadata based on what you see in this frame.' : ''}
 2. Pay special attention to the BACKGROUND: 
    - FIRST: Check if the background has transparency (alpha channel). If transparent, it has NO COLOR - describe as "transparent background" or "isolated" ONLY.
    - If transparent: DO NOT mention ANY background color (not green, not white, not any color) - ONLY say "transparent background" or "isolated"
@@ -74,7 +75,7 @@ CRITICAL: An image is provided. You MUST:
    - FORBIDDEN: Never mention "green background" unless the background is actually a solid green color (not transparent)
 3. Generate title based ONLY on visible content: subjects, objects, colors, textures, setting, AND background (only if visible/colored, not if transparent)
 4. Generate keywords describing ONLY what you observe: subjects, objects, colors, textures, setting, AND background details (transparent/white/colored - be accurate!)
-5. Use filename hints only as secondary clues if the image is unclear
+${isVideo ? '5. DO NOT use filename hints - analyze ONLY the frame image you see' : '5. Use filename hints only as secondary clues if the image is unclear'}
 ` : '';
   
   const adobeTitleGuidance = platform === 'adobe' ? `
@@ -196,11 +197,21 @@ This override takes precedence over everything else in this prompt.
     ? `\n\n⚠️ USER-SPECIFIED FILE ATTRIBUTES (OVERRIDE ALL AI DETECTION):\n${fileAttributes.join('\n')}\n` 
     : '';
   
+  const isVideo = a.assetType === 'video';
+  const imageContext = isVideo && hasImage 
+    ? 'IMPORTANT: The provided image is a frame extracted from the middle of a video. Analyze this frame carefully as it represents the video content. Describe what you see:'
+    : hasImage 
+      ? 'IMPORTANT: Analyze the provided image carefully. Describe what you see:'
+      : '';
+  
+  // For videos with extracted frames, don't use filename hints
+  const shouldUseFilenameHints = !(isVideo && hasImage);
+  
   return `
-${mandatoryOverride}${rules(a.keywordCount, a.titleLen, hasImage, a.platform)}
+${mandatoryOverride}${rules(a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
 Platform: ${a.platform} (${PLATFORM_TIPS[a.platform]}).
 Asset: ${a.assetType} (${ASSET_TIPS[a.assetType]}); ext: ${a.extension}.
-${fileAttributesText}${hasImage ? `IMPORTANT: Analyze the provided image carefully. Describe what you see:
+${fileAttributesText}${hasImage ? `${imageContext}
 - Subjects and objects
 - Colors and textures
 - Setting and background (CRITICAL: 
@@ -214,7 +225,7 @@ ${fileAttributesText}${hasImage ? `IMPORTANT: Analyze the provided image careful
 Apply prefix="${a.prefix || ''}" and suffix="${a.suffix || ''}" to the title if provided.
 Avoid title words: [${a.negativeTitle.join(', ')}].
 Exclude keywords: [${a.negativeKeywords.join(', ')}].
-Filename hints: ${hints.join(', ') || 'none'}${hasImage ? ' (use only as secondary clues)' : ''}.
+${shouldUseFilenameHints ? `Filename hints: ${hints.join(', ') || 'none'}${hasImage ? ' (use only as secondary clues)' : ''}.` : isVideo && hasImage ? 'CRITICAL: This is a video with an extracted frame. Generate metadata based ONLY on the visual content of the frame image. DO NOT use the filename as a clue - analyze what you actually see in the image.' : ''}
 ${a.assetType === 'video'
   ? `Video hints (optional): style=[${a.videoHints?.style?.join(', ') || ''}], tech=[${a.videoHints?.tech?.join(', ') || ''}]`
   : ''

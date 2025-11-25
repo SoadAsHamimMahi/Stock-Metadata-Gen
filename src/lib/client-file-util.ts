@@ -166,6 +166,92 @@ export function isVectorFile(file: File): boolean {
 }
 
 /**
+ * Extract middle frame from video and convert to base64 image
+ * @param file - The video File object
+ * @returns Base64-encoded image data URL
+ */
+export async function extractVideoFrame(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      reject(new Error('Failed to get canvas context'));
+      return;
+    }
+
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+
+    video.onloadedmetadata = () => {
+      // Seek to middle of video
+      video.currentTime = video.duration / 2;
+    };
+
+    video.onseeked = () => {
+      try {
+        // Set canvas dimensions to video dimensions (with max size limit)
+        const maxDimension = MAX_DIMENSION;
+        let width = video.videoWidth;
+        let height = video.videoHeight;
+
+        // Resize if needed to fit within max dimension
+        if (width > maxDimension || height > maxDimension) {
+          const ratio = Math.min(maxDimension / width, maxDimension / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw video frame to canvas
+        ctx.drawImage(video, 0, 0, width, height);
+
+        // Convert canvas to blob, then to base64
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to extract video frame'));
+              return;
+            }
+
+            // Convert blob to base64
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              // Clean up
+              URL.revokeObjectURL(video.src);
+              resolve(result);
+            };
+            reader.onerror = () => {
+              URL.revokeObjectURL(video.src);
+              reject(new Error('Failed to convert frame to base64'));
+            };
+            reader.readAsDataURL(blob);
+          },
+          'image/jpeg',
+          QUALITY
+        );
+      } catch (error: any) {
+        URL.revokeObjectURL(video.src);
+        reject(new Error(`Frame extraction failed: ${error?.message || 'Unknown error'}`));
+      }
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src);
+      reject(new Error('Failed to load video'));
+    };
+
+    // Load video from file
+    video.src = URL.createObjectURL(file);
+  });
+}
+
+/**
  * Convert File to base64 with optional compression for images
  * @param file - The File to convert
  * @param compress - Whether to compress images before conversion
@@ -175,6 +261,18 @@ export async function fileToBase64WithCompression(
   file: File,
   compress: boolean = true
 ): Promise<string> {
+  // Handle videos - extract middle frame
+  if (isVideoFile(file)) {
+    try {
+      const frameData = await extractVideoFrame(file);
+      // Frame is already compressed JPEG, return as-is
+      return frameData;
+    } catch (error) {
+      console.warn('Video frame extraction failed:', error);
+      throw error; // Re-throw so caller knows it failed
+    }
+  }
+
   let fileToConvert = file;
 
   // Compress images if requested
