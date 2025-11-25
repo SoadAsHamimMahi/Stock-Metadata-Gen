@@ -10,6 +10,7 @@ import TemplateManager from '@/components/TemplateManager';
 import Analytics from '@/components/Analytics';
 import HistoryViewer, { saveToHistory } from '@/components/HistoryViewer';
 import { toCSV } from '@/lib/csv';
+import { createVectorFormatExcel } from '@/lib/excel';
 import { getJSON, setJSON, getDecryptedJSON } from '@/lib/util';
 import { trackEvent } from '@/lib/analytics';
 import { scoreTitleQuality } from '@/lib/util';
@@ -192,6 +193,60 @@ export default function Page() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const onExportZIP = async () => {
+    try {
+      // Check if there are any vector assets
+      const hasVectorAssets = rows.some(r => r.assetType === 'vector' && !r.error);
+      if (!hasVectorAssets) {
+        setError({
+          id: Date.now().toString(),
+          message: 'No vector assets found. ZIP export is only available for SVG/vector files.',
+          severity: 'warning',
+          duration: 5000
+        });
+        return;
+      }
+
+      // Dynamically import JSZip to avoid SSR issues
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      // Create 3 Excel files for AI, EPS, and SVG formats
+      const aiExcel = createVectorFormatExcel(rows, 'ai', form.titleLen, form.descLen, form.keywordCount);
+      const epsExcel = createVectorFormatExcel(rows, 'eps', form.titleLen, form.descLen, form.keywordCount);
+      const svgExcel = createVectorFormatExcel(rows, 'svg', form.titleLen, form.descLen, form.keywordCount);
+
+      // Convert blobs to array buffers for JSZip
+      const aiBuffer = await aiExcel.arrayBuffer();
+      const epsBuffer = await epsExcel.arrayBuffer();
+      const svgBuffer = await svgExcel.arrayBuffer();
+
+      // Add Excel files to ZIP
+      zip.file('metadata-ai.xlsx', aiBuffer);
+      zip.file('metadata-eps.xlsx', epsBuffer);
+      zip.file('metadata-svg.xlsx', svgBuffer);
+
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'stock-metadata-vectors.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export ZIP:', error);
+      setError({
+        id: Date.now().toString(),
+        message: 'Failed to create ZIP file. Please try again.',
+        severity: 'error',
+        duration: 5000
+      });
+    }
   };
 
   const onGenerateAll = async () => {
@@ -912,9 +967,12 @@ export default function Page() {
             <AdvancedMetadataControls value={form} onChange={handleFormChange} />
           </div>
           <div className="p-4 bg-gradient-to-r from-green-accent/10 to-teal-accent/10 rounded-lg border border-green-accent/20">
-            <p className="text-xs text-text-secondary font-medium">
+            <p className="text-xs text-text-secondary font-medium mb-2">
               {/* eslint-disable-next-line react/no-unescaped-entities */}
               Helper: Files are saved in <code className="px-1.5 py-0.5 bg-green-accent/20 rounded border border-green-accent/30 text-green-bright font-bold">/public/uploads</code>. &ldquo;Clear All&rdquo; removes them.
+            </p>
+            <p className="text-xs text-text-secondary font-medium">
+              <strong className="text-green-bright">SVG Export:</strong> For SVG uploads, use &ldquo;Export ZIP (Excel)&rdquo; to get 3 Excel files (AI, EPS, SVG) bundled in a ZIP file for Adobe Stock.
             </p>
           </div>
         </div>
@@ -928,6 +986,7 @@ export default function Page() {
               onGenerateAll={onGenerateAll}
               generating={busy}
               onExportCSV={onExportCSV}
+              onExportZIP={onExportZIP}
               hasRows={rows.length > 0}
               rows={rows}
               onRegenerate={onRegenerate}

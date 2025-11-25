@@ -74,6 +74,11 @@ You can try the app directly here: **[Stock Metadata Generator Live](https://csv
   - Exports a clean CSV with columns ready to be mapped to stock platforms.
   - Uses `;`‑separated keywords in a single field for easy import.
 
+- **Excel ZIP export for vector assets**
+  - For SVG/vector uploads, exports 3 separate Excel files (AI, EPS, SVG) bundled in a ZIP archive.
+  - Each Excel file contains metadata with filenames matching that format (e.g., `design.ai`, `design.eps`, `design.svg`).
+  - Perfect for Adobe Stock vector uploads requiring separate format files.
+
 - **Local API key management**
   - “**API Secrets**” UI for managing Gemini/Mistral keys.
   - Keys are **stored locally and securely** (via encrypted client‑side storage), not hard‑coded.
@@ -215,23 +220,30 @@ The generation API will:
    - Drag & drop files into the upload area, or click to pick.
    - Supported formats: **PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM**.
    - Files are listed with previews, sizes, and extensions.
+   - **For SVG/vector assets**: Upload SVG files and set **Image Type** to `vector` for best results.
 
 5. **Generate metadata**
-   - Click **“Generate All”** to process every file using current settings, or
+   - Click **"Generate All"** to process every file using current settings, or
    - Use the **per‑file Generate / Regenerate** button on each card.
    - Watch progress bars and retry indicators; errors per file are surfaced in the UI.
+   - For SVG uploads, the AI analyzes the visual content to generate accurate metadata.
 
 6. **Review & refine**
    - Inspect titles, descriptions, and keywords.
    - Use built‑in **quality scores** to identify weak titles.
    - Optionally use the **Bulk Editor** for mass edits.
 
-7. **Export CSV**
-   - Once satisfied, click **“Export CSV”**.
-   - A CSV file (`stock-metadata.csv`) is generated with one row per asset.
+7. **Export CSV or ZIP**
+   - **Export CSV**: Click **"Export CSV"** to download a CSV file with metadata (works for all asset types).
+   - **Export ZIP (Excel)**: For SVG/vector assets, click **"Export ZIP (Excel)"** to download a ZIP file containing:
+     - `metadata-ai.xlsx` - Excel file with AI format entries
+     - `metadata-eps.xlsx` - Excel file with EPS format entries
+     - `metadata-svg.xlsx` - Excel file with SVG format entries
+   - Each Excel file contains the same metadata but with filenames/extensions matching that format.
 
 8. **Upload to platforms**
-   - Use the CSV in your microstock workflow, mapping fields as needed.
+   - Use the CSV or Excel files in your microstock workflow, mapping fields as needed.
+   - For Adobe Stock vector uploads, use the Excel files from the ZIP export.
 
 ---
 
