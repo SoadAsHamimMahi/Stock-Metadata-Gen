@@ -434,9 +434,17 @@ export async function generateWithGemini(a: ModelArgs): Promise<ModelOut> {
     
     // URL encode the key to handle any special characters safely
     const encodedKey = encodeURIComponent(key);
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodedKey}`;
     
-    console.log(`📡 Making request to Gemini API (URL length: ${apiUrl.length} chars)`);
+    // Select model based on preview flag
+    // preview: false → gemini-2.5-flash (fast, efficient, default)
+    // preview: true → gemini-1.5-pro-latest (better quality, slower, preview model)
+    const modelName = a.preview 
+      ? 'gemini-1.5-pro-latest' 
+      : 'gemini-2.5-flash';
+    
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodedKey}`;
+    
+    console.log(`📡 Making request to Gemini API using model: ${modelName} (preview: ${a.preview ? 'enabled' : 'disabled'})`);
     
     const res = await fetch(
       apiUrl,

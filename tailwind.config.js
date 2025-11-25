@@ -43,7 +43,8 @@ module.exports = {
         paper: '#1a1a1a'
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif']
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        'space-grotesk': ['var(--font-space-grotesk)', 'system-ui', 'sans-serif']
       },
       container: {
         center: true

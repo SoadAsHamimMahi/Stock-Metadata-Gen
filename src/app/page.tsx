@@ -6,9 +6,7 @@ import AdvancedMetadataControls from '@/components/AdvancedMetadataControls';
 import FileDrop from '@/components/FileDrop';
 import ResultTable from '@/components/ResultTable';
 import ErrorToastComponent, { type ErrorToast } from '@/components/ErrorToast';
-import TemplateManager from '@/components/TemplateManager';
 import Analytics from '@/components/Analytics';
-import HistoryViewer, { saveToHistory } from '@/components/HistoryViewer';
 import { toCSV } from '@/lib/csv';
 import { createVectorFormatExcel } from '@/lib/excel';
 import { getJSON, setJSON, getDecryptedJSON } from '@/lib/util';
@@ -39,12 +37,6 @@ export default function Page() {
   const [shouldStop, setShouldStop] = useState(false);
   const [generatingFiles, setGeneratingFiles] = useState<Set<string>>(new Set());
   const [retryingFiles, setRetryingFiles] = useState<Map<string, { attempt: number; maxAttempts: number; errorType?: string }>>(new Map());
-  const [history, setHistory] = useState<Array<{ at: number; count: number }>>(() => {
-    if (typeof window !== 'undefined') {
-      return getJSON('smg_history', []);
-    }
-    return [];
-  });
   const [error, setError] = useState<ErrorToast | null>(null);
 
   const [form, setForm] = useState({
@@ -480,7 +472,7 @@ export default function Page() {
                 imageData: imageData // Include base64 data for images/videos
               })),
               videoHints: form.assetType === 'video' ? form.videoHints : undefined,
-              singleMode: true,
+              singleMode: form.singleMode,
               isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
               isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
               isVector: form.isVector,
@@ -608,13 +600,7 @@ export default function Page() {
           }
         });
         
-        // Save to history
-        saveToHistory(allRows, form);
         
-        // Update history
-        const next = [{ at: Date.now(), count: allRows.length }, ...history].slice(0, 20);
-        setHistory(next);
-        setJSON('smg_history', next);
       }
     } catch (e: any) {
       console.error(e);
@@ -959,31 +945,7 @@ export default function Page() {
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-green-accent/20">
               <h2 className="text-xl font-bold text-text-primary">Settings</h2>
               <div className="flex gap-2">
-                <TemplateManager 
-                  currentForm={form} 
-                  onApplyTemplate={(template: FormState) => setForm({
-                    ...form,
-                    ...template,
-                    model: {
-                      ...form.model,
-                      ...template.model,
-                      preview: template.model.preview ?? false
-                    },
-                    videoHints: {
-                      style: template.videoHints?.style ?? [],
-                      tech: template.videoHints?.tech ?? []
-                    },
-                    negativeTitle: template.negativeTitle ?? [],
-                    negativeKeywords: template.negativeKeywords ?? [],
-                    isolatedOnTransparentBackground: template.isolatedOnTransparentBackground ?? false,
-                    isolatedOnWhiteBackground: template.isolatedOnWhiteBackground ?? false,
-                    isVector: template.isVector ?? false,
-                    isIllustration: template.isIllustration ?? false,
-                    singleMode: template.singleMode ?? false
-                  })} 
-                />
                 <Analytics />
-                <HistoryViewer onRestore={(rows) => setRows(rows)} />
               </div>
             </div>
             <APIControls value={form} onChange={handleFormChange} />

@@ -602,6 +602,7 @@ function FileCard({
               )}
             </div>
           </div>
+          
         </div>
 
         {/* Metadata Section */}
@@ -665,25 +666,6 @@ function FileCard({
             {row && (
               <div className="flex gap-2 mt-2">
                 <CopyBtn label="Copy Title" text={title} />
-                {onRegenerate && (
-                  <button
-                    className={`btn btn-secondary text-sm flex items-center gap-1 ripple-effect ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
-                    onClick={() => !isGenerating && onRegenerate(file.name)}
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-green-accent border-t-transparent rounded-full animate-spin"></div>
-                        <span>Regenerating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="animate-spin-slow">✨</span>
-                        <span>Regenerate</span>
-                      </>
-                    )}
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -736,6 +718,29 @@ function FileCard({
               </div>
             )}
           </div>
+          
+          {/* Generate/Regenerate Button - Bottom Right */}
+          {onRegenerate && (
+            <div className="flex justify-end mt-4">
+              <button
+                className={`btn text-sm flex items-center gap-1.5 ripple-effect ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
+                onClick={() => !isGenerating && onRegenerate(file.name)}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>{row ? 'Regenerating...' : 'Generating...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-base">✨</span>
+                    <span>{row ? 'Regenerate' : 'Generate'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

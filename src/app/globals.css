@@ -47,21 +47,20 @@ body::before {
   @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-300;
   @apply bg-gradient-to-r from-green-accent to-teal-accent text-white;
   @apply hover:from-green-bright hover:to-teal-bright;
-  @apply shadow-green-glow hover:shadow-green-glow-lg active:scale-95;
+  @apply active:scale-95;
   @apply font-semibold ripple-effect;
   position: relative;
   overflow: hidden;
 }
 .btn-secondary {
   @apply bg-teal-accent text-white hover:bg-green-accent;
-  @apply shadow-teal-glow hover:shadow-teal-glow-lg;
   @apply font-semibold ripple-effect;
   position: relative;
   overflow: hidden;
 }
 .btn-ghost {
   @apply bg-transparent text-text-primary hover:bg-dark-elevated/50 border border-green-accent/20;
-  @apply hover:border-green-accent/40 hover:shadow-green-glow;
+  @apply hover:border-green-accent/40;
   @apply font-medium;
 }
 .btn-disabled {
@@ -120,7 +119,7 @@ body::before {
   @apply px-4 py-2 text-sm font-bold rounded-lg border border-transparent transition-all duration-300;
 }
 .tab-active {
-  @apply bg-green-gradient text-white border-green-accent shadow-green-glow;
+  @apply bg-green-gradient text-white border-green-accent;
 }
 .tab-inactive {
   @apply bg-dark-elevated/50 text-text-secondary hover:bg-dark-elevated border-green-accent/20;
@@ -555,6 +554,17 @@ h2 {
 
 h3 {
   @apply text-xl;
+}
+
+/* Header typography utilities */
+.header-title {
+  @apply text-3xl font-extrabold tracking-normal leading-tight;
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
+}
+
+.header-tagline {
+  @apply text-sm font-medium tracking-wide leading-relaxed;
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
 }
 
 /* Enhanced shadows */
