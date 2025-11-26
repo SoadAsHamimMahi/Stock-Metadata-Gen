@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import VideoBackground from '@/components/VideoBackground';
+import logo from '@/image/logo.jpeg';
 
 const spaceGrotesk = Space_Grotesk({ 
   subsets: ['latin'], 
@@ -22,7 +23,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'StockCSV - AI-Powered Stock Metadata Generator',
-  description: 'Generate platform-ready stock metadata from filenames and assets'
+  description: 'Generate platform-ready stock metadata from filenames and assets',
+  icons: {
+    icon: logo.src,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

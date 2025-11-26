@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import KeyModal from './KeyModal';
 import { getDecryptedJSON } from '@/lib/util';
+import logo from '@/image/logo.jpeg';
 
 type HeaderProps = {
   onExportCSV?: () => void;
@@ -24,8 +26,15 @@ export default function Header({ onExportCSV, hasRows = false }: HeaderProps) {
     <>
       <div className="flex items-center justify-between py-4 gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-green-accent to-teal-accent flex items-center justify-center text-xl shadow-green-glow hover:shadow-green-glow-lg transition-all duration-300 animate-pulse-glow">
-            🐦
+          <div className="w-11 h-11 rounded-lg bg-gradient-to-r from-green-accent to-teal-accent flex items-center justify-center text-xl shadow-green-glow hover:shadow-green-glow-lg transition-all duration-300 animate-pulse-glow">
+            <Image
+              src={logo}
+              alt="StockCSV logo"
+              width={36}
+              height={36}
+              className="rounded-lg object-cover"
+              priority
+            />
           </div>
           <div>
             <div className="text-4xl font-extrabold tracking-tight text-white font-space-grotesk leading-tight">StockCSV</div>
