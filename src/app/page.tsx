@@ -1006,14 +1006,14 @@ export default function Page() {
                   <span className="text-green-bright font-bold text-lg flex-shrink-0">3.</span>
                   <div>
                     <div className="text-sm font-semibold text-text-primary mb-1">Generate Metadata</div>
-                    <div className="text-sm text-text-secondary">Click "Generate All" to process all files, or use individual "Generate" buttons to test one file first</div>
+                    <div className="text-sm text-text-secondary">Click &quot;Generate All&quot; to process all files, or use individual &quot;Generate&quot; buttons to test one file first</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-green-bright font-bold text-lg flex-shrink-0">4.</span>
                   <div>
                     <div className="text-sm font-semibold text-text-primary mb-1">Export Results</div>
-                    <div className="text-sm text-text-secondary">Use "Export CSV" for standard format, or "Export ZIP (Excel)" for vector files (SVG) to get 3 Excel files (AI, EPS, SVG)</div>
+                    <div className="text-sm text-text-secondary">Use &quot;Export CSV&quot; for standard format, or &quot;Export ZIP (Excel)&quot; for vector files (SVG) to get 3 Excel files (AI, EPS, SVG)</div>
                   </div>
                 </div>
               </div>
