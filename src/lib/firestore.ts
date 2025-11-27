@@ -204,7 +204,7 @@ export async function getLeaderboard(period: 'weekly' | 'monthly'): Promise<Lead
                 count,
                 displayName: userData.displayName,
                 photoURL: userData.photoURL
-              };
+              } as LeaderboardEntry;
             }
           }
         } catch (error) {
