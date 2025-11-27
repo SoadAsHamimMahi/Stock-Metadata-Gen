@@ -14,6 +14,8 @@ import {
   isImageFile 
 } from '@/lib/client-file-util';
 import RetryIndicator from '@/components/RetryIndicator';
+import { useGuardedAction } from '@/hooks/useGuardedAction';
+import LoginModal from '@/components/LoginModal';
 
 type UploadItem = { 
   name: string; 
@@ -66,6 +68,7 @@ export default function FileDrop({
   const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing'>('uploading');
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { executeGuarded, loginModalOpen, setLoginModalOpen, reason, handleLoginSuccess } = useGuardedAction();
 
   const totalSize = useMemo(() => {
     return files.reduce((sum, f) => sum + f.size, 0);
@@ -93,16 +96,29 @@ export default function FileDrop({
     setDragOver(false);
     const dt = e.dataTransfer;
     if (!dt?.files?.length) return;
-    await upload(Array.from(dt.files));
+    
+    executeGuarded(async () => {
+      await upload(Array.from(dt.files));
+    }, 'Please sign in to upload images.');
   };
+  
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files;
     if (!list?.length) return;
-    await upload(Array.from(list));
-    // Reset input value using ref (safer than currentTarget which can be null)
-    if (inputRef.current) {
-      inputRef.current.value = '';
-    }
+    
+    executeGuarded(async () => {
+      await upload(Array.from(list));
+      // Reset input value using ref (safer than currentTarget which can be null)
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
+    }, 'Please sign in to upload images.');
+  };
+  
+  const handleUploadClick = () => {
+    executeGuarded(() => {
+      inputRef.current?.click();
+    }, 'Please sign in to upload images.');
   };
   const upload = async (fileList: File[]) => {
     setUploadError(null);
@@ -234,7 +250,7 @@ export default function FileDrop({
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={handleUploadClick}
         className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 mb-6 ${
           files.length > 0 
             ? 'p-4' // Smaller when files exist
@@ -423,6 +439,13 @@ export default function FileDrop({
           })}
         </div>
       )}
+      
+      <LoginModal 
+        open={loginModalOpen} 
+        onOpenChange={setLoginModalOpen}
+        reason={reason}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }

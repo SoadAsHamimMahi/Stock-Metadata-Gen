@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import KeyModal from '@/components/KeyModal';
 import { getDecryptedJSON } from '@/lib/util';
 import type { FormState } from '@/lib/types';
+import { useGuardedAction } from '@/hooks/useGuardedAction';
+import LoginModal from '@/components/LoginModal';
 
 export default function APIControls({ value, onChange }: { value: FormState; onChange: (v: FormState | ((prev: FormState) => FormState)) => void }) {
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'>(value.model.provider);
+  const { executeGuarded, loginModalOpen, setLoginModalOpen, reason, handleLoginSuccess } = useGuardedAction();
 
   useEffect(() => {
     setActiveProvider(value.model.provider);
@@ -43,7 +46,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           <h2 className="text-xl font-extrabold text-text-primary tracking-tight">Generation Controls</h2>
         </div>
         <button
-          onClick={() => setKeyModalOpen(true)}
+          onClick={() => executeGuarded(() => setKeyModalOpen(true), 'Please sign in to manage your API secrets.')}
           className="px-3 py-1.5 text-sm bg-ink/5 hover:bg-ink/10 rounded border border-ink/20 flex items-center gap-2"
         >
           <span>🔑</span>
@@ -115,6 +118,12 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
       </div>
 
       <KeyModal open={keyModalOpen} onOpenChange={setKeyModalOpen} />
+      <LoginModal 
+        open={loginModalOpen} 
+        onOpenChange={setLoginModalOpen}
+        reason={reason}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }

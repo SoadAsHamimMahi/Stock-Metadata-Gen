@@ -18,6 +18,7 @@ import type { Row } from '@/lib/csv';
 import type { FormState } from '@/lib/types';
 import { fileToBase64WithCompression, isImageFile, isVideoFile } from '@/lib/client-file-util';
 import { retrySSEClient } from '@/lib/retry-sse';
+import { useAuth } from '@/contexts/AuthContext';
 
 type UploadItem = { 
   name: string; 
@@ -62,6 +63,36 @@ export default function Page() {
   });
 
   const bearerRef = useRef<string>('');
+  const { user } = useAuth();
+  
+  // Helper function to track generation in Firestore
+  const trackGenerationInFirestore = async (fileCount: number) => {
+    if (!user || fileCount === 0) return;
+    
+    try {
+      // Dynamically import Firestore utilities (client-side only)
+      const { trackGeneration, initializeUser } = await import('@/lib/firestore');
+      
+      const displayName = user.displayName || user.email?.split('@')[0] || 'User';
+      const email = user.email || '';
+      const photoURL = user.photoURL || undefined;
+      
+      // Initialize/update user document
+      await initializeUser(user.uid, displayName, email, photoURL);
+      
+      // Track generation
+      await trackGeneration(user.uid, fileCount, displayName, email, photoURL);
+      
+      console.log(`✅ Tracked ${fileCount} generation(s) for user ${user.uid}`);
+    } catch (e: any) {
+      console.error('❌ Failed to track generation:', e);
+      console.error('Error details:', {
+        message: e.message,
+        code: e.code,
+        stack: e.stack
+      });
+    }
+  };
   
   // Wrapper function to ensure all required fields are present when updating form
   const handleFormChange = useCallback((newForm: FormState | ((prev: FormState) => FormState)) => {
@@ -341,7 +372,11 @@ export default function Page() {
               isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
               isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
               isVector: form.isVector,
-              isIllustration: form.isIllustration
+              isIllustration: form.isIllustration,
+              userId: user?.uid,
+              userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
+              userEmail: user?.email || undefined,
+              userPhotoURL: user?.photoURL || undefined
             };
             
             console.log(`📤 API Request (single mode) for ${files[i].name}:`, {
@@ -396,6 +431,9 @@ export default function Page() {
               allRows.push(newRow);
               // Update UI immediately after each generation
               setRows([...allRows]);
+              
+              // Track generation
+              await trackGenerationInFirestore(data.rows.length);
               
               // Remove from generating set
               setGeneratingFiles(prev => {
@@ -483,7 +521,11 @@ export default function Page() {
               isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
               isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
               isVector: form.isVector,
-              isIllustration: form.isIllustration
+              isIllustration: form.isIllustration,
+              userId: user?.uid,
+              userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
+              userEmail: user?.email || undefined,
+              userPhotoURL: user?.photoURL || undefined
             };
             
             console.log(`📤 API Request (batch mode, file ${i + 1}/${files.length}) for ${files[i].name}:`, {
@@ -537,6 +579,9 @@ export default function Page() {
               allRows.push(newRow);
               // Update UI immediately after each generation
               setRows([...allRows]);
+              
+              // Track generation
+              await trackGenerationInFirestore(data.rows.length);
               
               // Remove from generating set
               setGeneratingFiles(prev => {
@@ -710,7 +755,11 @@ export default function Page() {
         isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
         isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
         isVector: form.isVector,
-        isIllustration: form.isIllustration
+        isIllustration: form.isIllustration,
+        userId: user?.uid,
+        userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
+        userEmail: user?.email || undefined,
+        userPhotoURL: user?.photoURL || undefined
       };
       
       console.log(`📤 API Request (regenerate) for ${filename}:`, {
@@ -754,6 +803,9 @@ export default function Page() {
           }
           return updated;
         });
+        
+        // Track generation
+        await trackGenerationInFirestore(data.rows.length);
       }
     } catch (e: any) {
       console.error(e);
@@ -857,7 +909,11 @@ export default function Page() {
             isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
             isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
             isVector: form.isVector,
-            isIllustration: form.isIllustration
+            isIllustration: form.isIllustration,
+            userId: user?.uid,
+            userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
+            userEmail: user?.email || undefined,
+            userPhotoURL: user?.photoURL || undefined
           };
           
           console.log(`📤 API Request (regenerate all, file ${i + 1}/${filesWithResults.length}) for ${file.name}:`, {
@@ -918,6 +974,9 @@ export default function Page() {
               }
               return updated;
             });
+            
+            // Track generation
+            await trackGenerationInFirestore(data.rows.length);
           }
           
           // Remove from generating set

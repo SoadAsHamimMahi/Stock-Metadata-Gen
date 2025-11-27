@@ -34,7 +34,11 @@ const Body = z.object({
   isolatedOnTransparentBackground: z.boolean().optional().default(false),
   isolatedOnWhiteBackground: z.boolean().optional().default(false),
   isVector: z.boolean().optional().default(false),
-  isIllustration: z.boolean().optional().default(false)
+  isIllustration: z.boolean().optional().default(false),
+  userId: z.string().optional(), // Firebase user ID for tracking
+  userDisplayName: z.string().optional(), // User display name
+  userEmail: z.string().optional(), // User email
+  userPhotoURL: z.string().optional() // User photo URL
 });
 
 // Minimal banned words - only AI model names that shouldn't appear in content
@@ -309,6 +313,10 @@ export async function POST(req: NextRequest) {
     const authHeader = req.headers.get('authorization');
     const bearer = authHeader?.replace(/^Bearer\s+/i, '').trim();
     const bearerToken = bearer && bearer.length > 0 ? bearer : undefined;
+    
+    // Note: Firestore tracking will be handled client-side after successful generation
+    // Server-side Firestore requires Firebase Admin SDK, which we'll skip for now
+    // Client can call a separate tracking endpoint if needed
     
     // Debug logging (always log in development, also log key issues in production)
     console.log(`🔍 API Request - Bearer token provided: ${bearerToken ? 'YES' : 'NO'}`);
@@ -875,11 +883,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Track analytics
-    if (typeof window === 'undefined') {
-      // Server-side: track via client-side tracking on response
-      // Analytics will be tracked client-side after successful generation
-    }
+    // Note: Generation tracking will be handled client-side
+    // The client will call a tracking endpoint after successful generation
 
     return NextResponse.json({ rows });
   } catch (error: any) {
