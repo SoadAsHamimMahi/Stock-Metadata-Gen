@@ -25,8 +25,8 @@ export function useGuardedAction() {
         // Authenticated - execute action
         const result = action();
         // Handle async actions
-        if (result instanceof Promise) {
-          result.catch((error) => {
+        if (result && typeof (result as any).then === 'function') {
+          (result as Promise<any>).catch((error) => {
             console.error('Error executing guarded action:', error);
           });
         }
@@ -40,8 +40,8 @@ export function useGuardedAction() {
     if (pendingAction) {
       const result = pendingAction();
       // Handle async actions
-      if (result instanceof Promise) {
-        result.catch((error) => {
+      if (result && typeof (result as any).then === 'function') {
+        (result as Promise<any>).catch((error) => {
           console.error('Error executing pending action after login:', error);
         });
       }
