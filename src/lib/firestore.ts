@@ -214,7 +214,8 @@ export async function getLeaderboard(period: 'weekly' | 'monthly'): Promise<Lead
       });
       
       const batchResults = await Promise.all(userPromises);
-      entries.push(...batchResults.filter((e): e is LeaderboardEntry => e !== null));
+      const validEntries = batchResults.filter((e): e is LeaderboardEntry => e !== null);
+      entries.push(...validEntries);
     }
     
     // Sort by count descending and return top 20
