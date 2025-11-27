@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,13 +29,7 @@ export default function ProfileModal({ open, onOpenChange }: ProfileModalProps) 
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (open && user) {
-      fetchStats();
-    }
-  }, [open, user]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     if (!user) return;
     
     setLoading(true);
@@ -80,7 +74,13 @@ export default function ProfileModal({ open, onOpenChange }: ProfileModalProps) 
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (open && user) {
+      fetchStats();
+    }
+  }, [open, user, fetchStats]);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
