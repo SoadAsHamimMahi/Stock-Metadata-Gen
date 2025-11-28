@@ -12,7 +12,7 @@ const inferAsset = (ext: string) =>
   ['png','jpg','jpeg','webp'].includes(ext) ? 'photo' : 'illustration';
 
 const Body = z.object({
-  platform: z.enum(['adobe','freepik','shutterstock']),
+  platform: z.enum(['general','adobe','shutterstock']),
   titleLen: z.number().min(20).max(200),
   descLen: z.literal(150),
   keywordCount: z.number().min(5).max(49),
@@ -185,7 +185,7 @@ function validateResponse(
   expectedKeywordCount: number,
   filename: string,
   hasImage: boolean,
-  platform: 'adobe' | 'freepik' | 'shutterstock'
+  platform: 'general' | 'adobe' | 'shutterstock'
 ): { valid: boolean; issues: string[]; warnings?: string[] } {
   const issues: string[] = [];
   const warnings: string[] = [];
@@ -419,7 +419,7 @@ export async function POST(req: NextRequest) {
         console.error(`❌ Error for ${f.name}: ${out.error}`);
         rows.push({
           filename: f.name,
-          platform: a.platform === 'adobe' ? 'Adobe' : a.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+          platform: a.platform === 'adobe' ? 'Adobe Stock' : a.platform === 'general' ? 'General' : 'Shutterstock',
           title: `[ERROR] ${out.error}`,
           description: 'Image analysis failed. Please check your API key and try again.',
           keywords: [],
@@ -439,7 +439,7 @@ export async function POST(req: NextRequest) {
         // Return error instead of using fallback
         rows.push({
           filename: f.name,
-          platform: a.platform === 'adobe' ? 'Adobe' : a.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+          platform: a.platform === 'adobe' ? 'Adobe Stock' : a.platform === 'general' ? 'General' : 'Shutterstock',
           title: '[ERROR] Image analysis failed: Generated title appears to be based on filename, not image content.',
           description: 'The AI may not have analyzed the image properly. Please check your API key and image format.',
           keywords: [],
@@ -455,7 +455,7 @@ export async function POST(req: NextRequest) {
           // Return error instead of generic fallback
           rows.push({
             filename: f.name,
-            platform: a.platform === 'adobe' ? 'Adobe' : a.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+            platform: a.platform === 'adobe' ? 'Adobe Stock' : a.platform === 'general' ? 'General' : 'Shutterstock',
             title: '[ERROR] Image analysis failed: No title generated.',
             description: 'The AI did not generate a title despite image being provided. Please check your API key.',
             keywords: [],
@@ -835,7 +835,7 @@ export async function POST(req: NextRequest) {
         console.error(`❌ Rejecting response for ${f.name}: ${errorMsg}`);
         rows.push({
           filename: f.name,
-          platform: a.platform === 'adobe' ? 'Adobe' : a.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+          platform: a.platform === 'adobe' ? 'Adobe Stock' : a.platform === 'general' ? 'General' : 'Shutterstock',
           title: `[ERROR] ${errorMsg}`,
           description: 'Response validation failed or quality too low. Please regenerate.',
           keywords: [],
@@ -853,7 +853,7 @@ export async function POST(req: NextRequest) {
 
       rows.push({
         filename: f.name,
-        platform: a.platform === 'adobe' ? 'Adobe' : a.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+        platform: a.platform === 'adobe' ? 'Adobe Stock' : a.platform === 'general' ? 'General' : 'Shutterstock',
         title,
         description,
         keywords: finalKeywords,

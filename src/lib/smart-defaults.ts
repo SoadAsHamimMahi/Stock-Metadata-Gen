@@ -7,7 +7,7 @@ import type { FormState } from './types';
  */
 export function getSmartDefaults(
   files: Array<{ name: string; ext?: string }>,
-  platform: 'adobe' | 'freepik' | 'shutterstock'
+  platform: 'general' | 'adobe' | 'shutterstock'
 ): Partial<FormState> {
   if (files.length === 0) return {};
   
@@ -44,9 +44,9 @@ export function getSmartDefaults(
     defaults.titleLen = 120;
     defaults.keywordCount = 49;
     defaults.model = { provider: 'gemini', preview: false };
-  } else if (platform === 'freepik') {
+  } else if (platform === 'general') {
     defaults.titleLen = 100;
-    defaults.keywordCount = 30;
+    defaults.keywordCount = 35;
     defaults.model = { provider: 'gemini', preview: false };
   }
   
@@ -65,7 +65,7 @@ export function getSmartDefaults(
  * Suggest optimal settings based on historical performance
  */
 export function getOptimalSettings(
-  platform: 'adobe' | 'freepik' | 'shutterstock',
+  platform: 'general' | 'adobe' | 'shutterstock',
   assetType: FormState['assetType']
 ): Partial<FormState> {
   // These are based on best practices and can be adjusted based on analytics
@@ -85,9 +85,9 @@ export function getOptimalSettings(
       keywordCount: 49,
       model: { provider: 'gemini', preview: false }
     },
-    'freepik-vector': {
+    'general-vector': {
       titleLen: 100,
-      keywordCount: 30,
+      keywordCount: 35,
       model: { provider: 'gemini', preview: false }
     }
   };

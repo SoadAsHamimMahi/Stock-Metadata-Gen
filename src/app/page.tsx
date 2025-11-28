@@ -36,7 +36,7 @@ export default function Page() {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
-  const [shouldStop, setShouldStop] = useState(false);
+  const shouldStopRef = useRef(false); // Use ref instead of state for synchronous access
   const [generatingFiles, setGeneratingFiles] = useState<Set<string>>(new Set());
   const [retryingFiles, setRetryingFiles] = useState<Map<string, { attempt: number; maxAttempts: number; errorType?: string }>>(new Map());
   const [error, setError] = useState<ErrorToast | null>(null);
@@ -44,7 +44,7 @@ export default function Page() {
   const [completionStats, setCompletionStats] = useState<CompletionStats | null>(null);
 
   const [form, setForm] = useState({
-    platform: 'shutterstock' as 'adobe' | 'freepik' | 'shutterstock',
+    platform: 'general' as 'general' | 'adobe' | 'shutterstock',
     model: { provider: 'gemini' as 'gemini' | 'mistral', preview: false },
     titleLen: 70, // Adobe Stock requirement: 70 chars max
     descLen: 150 as 150,
@@ -209,12 +209,18 @@ export default function Page() {
   // Server rehydration removed - files are now stored client-side only
 
   const onExportCSV = () => {
-    const csv = toCSV(rows, form.titleLen, form.descLen, form.keywordCount);
+    const csv = toCSV(rows, form.titleLen, form.descLen, form.keywordCount, form.platform);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'stock-metadata.csv';
+    const filename =
+      form.platform === 'adobe'
+        ? 'StockCSV_Adobe.csv'
+        : form.platform === 'shutterstock'
+          ? 'StockCSV_ShutterStock.csv'
+          : 'StockCSV_Gen.csv';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -296,7 +302,7 @@ export default function Page() {
     const startTime = Date.now();
     
     setBusy(true);
-    setShouldStop(false);
+    shouldStopRef.current = false; // Reset stop flag
     setProcessingProgress(0);
     setCompletionModalOpen(false); // Close any existing modal
     // Don't clear rows - preserve existing results and only update as new ones come in
@@ -308,7 +314,8 @@ export default function Page() {
         // Single mode: Process one file at a time and show results immediately
         
         for (let i = 0; i < files.length; i++) {
-          if (shouldStop) {
+          if (shouldStopRef.current) {
+            console.log('🛑 Generation stopped by user');
             setBusy(false);
             setGeneratingFiles(new Set());
             return;
@@ -404,7 +411,7 @@ export default function Page() {
               // Add error row immediately
               const errorRow: Row = {
                 filename: files[i].name,
-                platform: form.platform === 'adobe' ? 'Adobe' : form.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+                platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
                 title: `[ERROR] ${errorMsg}`,
                 description: 'Generation failed. Please check your API key and try again.',
                 keywords: [],
@@ -449,7 +456,7 @@ export default function Page() {
             // Add error row for this file
             const errorRow: Row = {
               filename: files[i].name,
-              platform: form.platform === 'adobe' ? 'Adobe' : form.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+              platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
               title: `[ERROR] ${fileError.message || 'Generation failed'}`,
               description: 'Generation failed. Please check your API key and try again.',
               keywords: [],
@@ -472,7 +479,8 @@ export default function Page() {
         }
         
         for (let i = 0; i < files.length; i++) {
-          if (shouldStop) {
+          if (shouldStopRef.current) {
+            console.log('🛑 Generation stopped by user');
             setBusy(false);
             setGeneratingFiles(new Set());
             return;
@@ -553,7 +561,7 @@ export default function Page() {
               // Add error row immediately
               const errorRow: Row = {
                 filename: files[i].name,
-                platform: form.platform === 'adobe' ? 'Adobe' : form.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+                platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
                 title: `[ERROR] ${errorMsg}`,
                 description: 'Generation failed. Please check your API key and try again.',
                 keywords: [],
@@ -595,7 +603,7 @@ export default function Page() {
             // Add error row for this file
             const errorRow: Row = {
               filename: files[i].name,
-              platform: form.platform === 'adobe' ? 'Adobe' : form.platform === 'freepik' ? 'Freepik' : 'Shutterstock',
+              platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
               title: `[ERROR] ${fileError.message || 'Generation failed'}`,
               description: 'Generation failed. Please check your API key and try again.',
               keywords: [],
@@ -660,8 +668,8 @@ export default function Page() {
       }
       
       // Show completion modal only if generation completed (not stopped early)
-      if (!shouldStop && allRows.length > 0) {
-        const platformName = form.platform === 'adobe' ? 'Adobe' : form.platform === 'freepik' ? 'Freepik' : 'Shutterstock';
+      if (!shouldStopRef.current && allRows.length > 0) {
+        const platformName = form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock';
         const modelName = form.model.provider === 'gemini' 
           ? (form.model.preview ? 'Gemini 1.5 Pro' : 'Gemini 2.0 Flash')
           : 'Mistral';
@@ -693,8 +701,10 @@ export default function Page() {
   };
 
   const onStopProcessing = () => {
-    setShouldStop(true);
+    console.log('🛑 Stop button clicked - setting stop flag');
+    shouldStopRef.current = true;
     setBusy(false);
+    setGeneratingFiles(new Set()); // Clear generating files immediately
   };
 
   const onRegenerate = async (filename: string) => {
@@ -856,12 +866,13 @@ export default function Page() {
     }
     
     setBusy(true);
-    setShouldStop(false);
+    shouldStopRef.current = false;
     setProcessingProgress(0);
     
     try {
       for (let i = 0; i < filesWithResults.length; i++) {
-        if (shouldStop) {
+        if (shouldStopRef.current) {
+          console.log('🛑 Regeneration stopped by user');
           setBusy(false);
           setGeneratingFiles(new Set());
           return;

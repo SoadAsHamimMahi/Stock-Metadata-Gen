@@ -1,7 +1,7 @@
 // src/lib/csv.ts
 export type Row = {
   filename: string;
-  platform: 'Adobe'|'Freepik'|'Shutterstock';
+  platform: 'General'|'Adobe Stock'|'Shutterstock';
   title: string;
   description: string;
   keywords: string[];
@@ -10,23 +10,67 @@ export type Row = {
   error?: string; // Optional error message for failed generations
 };
 
-export function toCSV(rows: Row[], titleLen: number, descLen: number, kwCount: number) {
+type GenerationPlatform = 'general' | 'adobe' | 'shutterstock';
+
+export function toCSV(
+  rows: Row[],
+  titleLen: number,
+  descLen: number,
+  kwCount: number,
+  platform?: GenerationPlatform
+) {
+  const esc = (s: string) => `"${(s || '').replaceAll('"','""')}"`;
+
+  // Shutterstock-specific upload CSV format
+  if (platform === 'shutterstock') {
+    const header = [
+      'Filename',
+      'Description',
+      'Keywords',
+      'Categories',
+      'Editorial',
+      'Mature content',
+      'illustration'
+    ].join(',');
+
+    const lines = rows.map(r => {
+      const illustrationFlag =
+        r.assetType === 'illustration' || r.assetType === 'vector' ? 'yes' : 'no';
+
+      return [
+        esc(r.filename),
+        esc(r.description),
+        esc(r.keywords.join(',')), // Shutterstock expects comma-separated keywords
+        '',                        // Categories (left empty for manual fill)
+        'no',                      // Editorial default
+        'no',                      // Mature content default
+        illustrationFlag
+      ].join(',');
+    });
+
+    return [header, ...lines].join('\n');
+  }
+
+  // General / Adobe-style CSV (standard format used by app)
   const header = [
     'filename','platform','title','description','keywords',
     'asset_type','extension','title_length','description_length','keywords_count'
   ].join(',');
-  const esc = (s: string) => `"${(s || '').replaceAll('"','""')}"`;
-  const lines = rows.map(r => [
-    esc(r.filename),
-    r.platform,
-    esc(r.title),
-    esc(r.description),
-    esc(r.keywords.join('; ')),
-    r.assetType,
-    r.extension,
-    titleLen,
-    descLen,
-    kwCount
-  ].join(','));
+
+  const lines = rows.map(r =>
+    [
+      esc(r.filename),
+      r.platform,
+      esc(r.title),
+      esc(r.description),
+      esc(r.keywords.join('; ')),
+      r.assetType,
+      r.extension,
+      titleLen,
+      descLen,
+      kwCount
+    ].join(',')
+  );
+
   return [header, ...lines].join('\n');
 }

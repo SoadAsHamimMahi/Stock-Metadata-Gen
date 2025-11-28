@@ -115,10 +115,46 @@ export default function FileDrop({
     }, 'Please sign in to upload images.');
   };
   
-  const handleUploadClick = () => {
-    executeGuarded(() => {
-      inputRef.current?.click();
-    }, 'Please sign in to upload images.');
+  const handleUploadClick = (e: React.MouseEvent) => {
+    // Don't prevent default or stop propagation - let the click work naturally
+    // Only prevent if clicking on a button or interactive element inside
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON' || target.closest('button')) {
+      return; // Don't trigger file picker if clicking a button
+    }
+    
+    // Check if inputRef is available
+    if (!inputRef.current) {
+      console.error('File input ref is not available');
+      // Try to find the input element directly as fallback
+      const inputElement = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (inputElement) {
+        inputElement.value = '';
+        inputElement.click();
+        return;
+      }
+      return;
+    }
+    
+    // Reset input value first to ensure file picker opens (important for re-selection)
+    inputRef.current.value = '';
+    
+    // Force a reflow to ensure the value reset is processed
+    void inputRef.current.offsetHeight;
+    
+    // Directly click the input - don't guard this, allow file selection always
+    // Login check happens in onPick when files are actually selected
+    try {
+      inputRef.current.click();
+    } catch (error) {
+      console.error('Error clicking file input:', error);
+      // Fallback: try again after a small delay
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.click();
+        }
+      }, 10);
+    }
   };
   const upload = async (fileList: File[]) => {
     setUploadError(null);
@@ -188,6 +224,11 @@ export default function FileDrop({
         revokePreviewUrl(f.url);
       }
     });
+    
+    // Reset file input to allow new file selection
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
     
     onFilesChange([]);
   };
@@ -261,25 +302,27 @@ export default function FileDrop({
             : 'border-green-accent/30 bg-dark-elevated/30 hover:border-green-accent/50 hover:bg-dark-elevated/50 hover:shadow-green-glow'
         }`}
       >
-        {files.length === 0 ? (
-          <>
-            <div className="text-4xl mb-4 animate-float">📁</div>
-            <div className="text-lg font-bold text-text-primary mb-2">Drag &amp; drop files here</div>
-            <div className="text-sm text-text-secondary mb-1">or click to select</div>
+        <div className="upload-zone-content">
+          {files.length === 0 ? (
+            <>
+              <div className="text-4xl mb-4 animate-float">📁</div>
+              <div className="text-lg font-bold text-text-primary mb-2">Drag &amp; drop files here</div>
+              <div className="text-sm text-text-secondary mb-1">or click to select</div>
               <div className="text-xs text-text-tertiary mt-2">
-              Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
-            </div>
-            <div className="text-xs text-text-tertiary">Max 150MB per file</div>
-          </>
-        ) : (
-          <>
-            <div className="text-2xl mb-2">📁</div>
-            <div className="text-sm font-bold text-text-secondary">Drop more files here or click to add</div>
-            <div className="text-xs text-text-tertiary mt-1">
-              Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
-            </div>
-          </>
-        )}
+                Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
+              </div>
+              <div className="text-xs text-text-tertiary">Max 150MB per file</div>
+            </>
+          ) : (
+            <>
+              <div className="text-2xl mb-2">📁</div>
+              <div className="text-sm font-bold text-text-secondary">Drop more files here or click to add</div>
+              <div className="text-xs text-text-tertiary mt-1">
+                Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
+              </div>
+            </>
+          )}
+        </div>
         <input
           ref={inputRef}
           type="file"
@@ -287,6 +330,7 @@ export default function FileDrop({
           accept=".png,.jpg,.jpeg,.webp,.svg,.eps,.ai,.mp4,.mov,.m4v,.webm"
           onChange={onPick}
           className="hidden"
+          style={{ display: 'none' }}
         />
       </div>
 
@@ -548,7 +592,7 @@ function FileCard({
   // Calculate quality score for display
   const qualityScore = useMemo(() => {
     if (!row || !row.title || row.error) return null;
-    const platformLower = row.platform.toLowerCase() as 'adobe' | 'freepik' | 'shutterstock';
+    const platformLower = row.platform.toLowerCase() as 'general' | 'adobe' | 'shutterstock';
     const hasImage = ['png', 'jpg', 'jpeg', 'webp'].includes(ext);
     // Use title length as expected length (or default to 200)
     const expectedLength = Math.min(row.title.length + 20, 200);

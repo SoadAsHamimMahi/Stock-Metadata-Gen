@@ -6,7 +6,7 @@
 export function enrichKeywords(
   keywords: string[],
   title: string,
-  platform: 'adobe' | 'freepik' | 'shutterstock'
+  platform: 'general' | 'adobe' | 'shutterstock'
 ): string[] {
   const enriched = [...keywords];
   const existing = new Set(keywords.map(k => k.toLowerCase()));

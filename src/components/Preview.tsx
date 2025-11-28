@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import type { Row } from '@/lib/csv';
 import { scoreTitleQuality } from '@/lib/util';
 
-export default function Preview({ row, platform }: { row: Row; platform: 'adobe' | 'freepik' | 'shutterstock' }) {
+export default function Preview({ row, platform }: { row: Row; platform: 'general' | 'adobe' | 'shutterstock' }) {
   const validation = useMemo(() => {
     const issues: string[] = [];
     const warnings: string[] = [];
@@ -207,11 +207,11 @@ export default function Preview({ row, platform }: { row: Row; platform: 'adobe'
                 <div>• Include specific details and context</div>
               </>
             )}
-            {platform === 'freepik' && (
+            {platform === 'general' && (
               <>
-                <div>• Optimized for vectors/illustrations</div>
-                <div>• Include concise style tokens</div>
-                <div>• Focus on design elements</div>
+                <div>• General-purpose metadata suitable for multiple platforms</div>
+                <div>• Use concise, descriptive titles and balanced keywords</div>
+                <div>• Avoid platform-specific terms like “Adobe Stock” or “Shutterstock”</div>
               </>
             )}
           </div>

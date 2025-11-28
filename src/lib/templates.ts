@@ -122,28 +122,6 @@ export function createDefaultTemplates(): Template[] {
         isVector: false,
         isIllustration: false
       }
-    },
-    {
-      name: 'Freepik Vector',
-      description: 'Optimized for vector illustrations on Freepik',
-      formState: {
-        platform: 'freepik',
-        model: { provider: 'gemini', preview: false },
-        titleLen: 100,
-        descLen: 150,
-        keywordCount: 30,
-        assetType: 'vector',
-        prefix: '',
-        suffix: '',
-        negativeTitle: [],
-        negativeKeywords: [],
-        singleMode: false,
-        videoHints: { style: [], tech: [] },
-        isolatedOnTransparentBackground: false,
-        isolatedOnWhiteBackground: false,
-        isVector: false,
-        isIllustration: false
-      }
     }
   ];
   

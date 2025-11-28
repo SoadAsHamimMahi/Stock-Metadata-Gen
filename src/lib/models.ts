@@ -2,7 +2,7 @@
 import { filenameHints, truncateByChars, dedupe } from './util';
 
 export type ModelArgs = {
-  platform: 'adobe' | 'freepik' | 'shutterstock';
+  platform: 'general' | 'adobe' | 'shutterstock';
   titleLen: number;
   descLen: number;           // usually 150
   keywordCount: number;
@@ -50,7 +50,7 @@ Example: "Young woman playing catch with Jack Russel Terrier at beach in Portlan
 Structure: [Subject] [action/description] [location/context]. Be precise and descriptive.
 Use caring, engaged language when describing people. Never use demeaning or derogatory language.`,
   shutterstock: 'Rich synonyms but no repetition or stuffing.',
-  freepik: 'For vectors/illustrations, include concise style tokens.'
+  general: 'Platform-agnostic, balanced metadata suitable for most stock sites.'
 } as const;
 const ASSET_TIPS = {
   photo: 'Photo terms allowed; do not invent camera models or releases.',
@@ -61,7 +61,7 @@ const ASSET_TIPS = {
   video: 'Subject + action + setting; only TRUE tech tags if provided (e.g., 4k, 60fps, timelapse).'
 } as const;
 
-function rules(keywordCount: number, titleLen: number, hasImage: boolean = false, platform?: 'adobe' | 'freepik' | 'shutterstock', isVideo?: boolean) {
+function rules(keywordCount: number, titleLen: number, hasImage: boolean = false, platform?: 'general' | 'adobe' | 'shutterstock', isVideo?: boolean) {
   const imageInstructions = hasImage ? `
 CRITICAL: An image is provided. You MUST:
 1. Analyze the image carefully and describe what you actually see

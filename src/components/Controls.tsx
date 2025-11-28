@@ -34,12 +34,9 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
   }, [value]);
 
   const platforms = [
-    { id: 'adobe', label: 'Adobe', icon: '✨' },
-    { id: 'shutterstock', label: 'St', icon: '📸' },
-    { id: 'vectorstock', label: 'VS', icon: '⬜' },
-    { id: 'freepik', label: 'F', icon: '🎨' },
-    { id: 'pond5', label: 'PONDS', icon: '🎬' },
-    { id: 'other', label: 'Other', icon: '⚙️' }
+    { id: 'general', label: 'General', icon: '✨' },
+    { id: 'adobe', label: 'Adobe Stock', icon: '🎨' },
+    { id: 'shutterstock', label: 'Shutterstock', icon: '📸' }
   ];
 
   return (
@@ -67,9 +64,9 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
                 <div className="label mb-3 text-text-secondary">EXPORT PLATFORM</div>
                 <div className="grid grid-cols-3 gap-2">
                   {platforms.map(p => {
-                    const isSelected = (p.id === 'adobe' && value.platform === 'adobe') ||
-                                      (p.id === 'shutterstock' && value.platform === 'shutterstock') ||
-                                      (p.id === 'freepik' && value.platform === 'freepik');
+                    const isSelected = (p.id === 'general' && value.platform === 'general') ||
+                                      (p.id === 'adobe' && value.platform === 'adobe') ||
+                                      (p.id === 'shutterstock' && value.platform === 'shutterstock');
                     return (
                       <button
                         key={p.id}
@@ -79,9 +76,9 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
                             : 'border-green-accent/20 hover:border-green-accent/40 bg-dark-elevated/30 text-text-secondary hover:text-text-primary hover:shadow-green-glow'
                         }`}
                         onClick={() => {
-                          if (p.id === 'adobe') set('platform', 'adobe');
+                          if (p.id === 'general') set('platform', 'general');
+                          else if (p.id === 'adobe') set('platform', 'adobe');
                           else if (p.id === 'shutterstock') set('platform', 'shutterstock');
-                          else if (p.id === 'freepik') set('platform', 'freepik');
                         }}
                       >
                         <div className="text-lg mb-1">{p.icon}</div>

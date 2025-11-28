@@ -217,7 +217,7 @@ export function scoreTitleQuality(
   filename: string, 
   expectedLength: number,
   hasImage: boolean,
-  platform?: 'adobe' | 'freepik' | 'shutterstock'
+  platform?: 'general' | 'adobe' | 'shutterstock'
 ): TitleQualityScore {
   const issues: string[] = [];
   const strengths: string[] = [];
