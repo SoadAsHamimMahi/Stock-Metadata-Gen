@@ -23,6 +23,7 @@ export const FormSchema = z.object({
   negativeTitle: z.array(z.string()).optional().default([]),
   negativeKeywords: z.array(z.string()).optional().default([]),
   singleMode: z.boolean().optional().default(false),
+  parallelMode: z.boolean().optional().default(false),
   videoHints: z.object({ style: z.array(z.string()).optional(), tech: z.array(z.string()).optional() }).optional(),
   isolatedOnTransparentBackground: z.boolean().optional().default(false),
   isolatedOnWhiteBackground: z.boolean().optional().default(false),

@@ -43,7 +43,9 @@ export default function FileDrop({
   onStopProcessing,
   onRowsUpdate,
   generatingFiles = new Set<string>(),
-  retryingFiles = new Map()
+  retryingFiles = new Map(),
+  successCount = 0,
+  failedCount = 0
 }: {
   files: UploadItem[];
   onFilesChange: (f: UploadItem[]) => void;
@@ -60,6 +62,8 @@ export default function FileDrop({
   onRowsUpdate?: (rows: Row[]) => void;
   generatingFiles?: Set<string>;
   retryingFiles?: Map<string, { attempt: number; maxAttempts: number; errorType?: string }>;
+  successCount?: number;
+  failedCount?: number;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -451,6 +455,16 @@ export default function FileDrop({
           </div>
           <div className="text-xs text-text-secondary text-center font-medium">
             {files.length} file{files.length !== 1 ? 's' : ''} • {processingProgress}% complete
+            {successCount > 0 && (
+              <span className="ml-2 text-green-400">
+                • {successCount} processed
+              </span>
+            )}
+            {failedCount > 0 && (
+              <span className="ml-2 text-red-400">
+                • {failedCount} failed
+              </span>
+            )}
             {retryingFiles.size > 0 && (
               <span className="ml-2 text-yellow-400 animate-pulse">
                 • {retryingFiles.size} retrying{retryingFiles.size !== 1 ? '' : ''}

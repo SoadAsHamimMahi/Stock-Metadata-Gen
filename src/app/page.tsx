@@ -19,6 +19,7 @@ import type { FormState } from '@/lib/types';
 import { fileToBase64WithCompression, isImageFile, isVideoFile } from '@/lib/client-file-util';
 import { retrySSEClient } from '@/lib/retry-sse';
 import { useAuth } from '@/contexts/AuthContext';
+import { keyPoolManager } from '@/lib/key-pool';
 
 type UploadItem = { 
   name: string; 
@@ -36,6 +37,8 @@ export default function Page() {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
+  const [successCount, setSuccessCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
   const shouldStopRef = useRef(false); // Use ref instead of state for synchronous access
   const [generatingFiles, setGeneratingFiles] = useState<Set<string>>(new Set());
   const [retryingFiles, setRetryingFiles] = useState<Map<string, { attempt: number; maxAttempts: number; errorType?: string }>>(new Map());
@@ -55,6 +58,7 @@ export default function Page() {
     negativeTitle: [] as string[],
     negativeKeywords: [] as string[],
     singleMode: false,
+    parallelMode: false,
     videoHints: { style: [] as string[], tech: [] as string[] },
     isolatedOnTransparentBackground: false,
     isolatedOnWhiteBackground: false,
@@ -99,6 +103,9 @@ export default function Page() {
     if (typeof newForm === 'function') {
       setForm(prev => {
         const updated = newForm(prev);
+        // Ensure singleMode and parallelMode are mutually exclusive
+        const singleMode = updated.singleMode ?? prev.singleMode;
+        const parallelMode = singleMode ? false : (updated.parallelMode ?? prev.parallelMode);
         return {
           ...prev,
           ...updated,
@@ -117,30 +124,37 @@ export default function Page() {
           isolatedOnWhiteBackground: updated.isolatedOnWhiteBackground ?? prev.isolatedOnWhiteBackground,
           isVector: updated.isVector ?? prev.isVector,
           isIllustration: updated.isIllustration ?? prev.isIllustration,
-          singleMode: updated.singleMode ?? prev.singleMode
+          singleMode,
+          parallelMode
         };
       });
     } else {
-      setForm(prev => ({
-        ...prev,
-        ...newForm,
-        model: {
-          ...prev.model,
-          ...newForm.model,
-          preview: newForm.model.preview ?? prev.model.preview ?? false
-        },
-        videoHints: {
-          style: newForm.videoHints?.style ?? prev.videoHints.style,
-          tech: newForm.videoHints?.tech ?? prev.videoHints.tech
-        },
-        negativeTitle: newForm.negativeTitle ?? prev.negativeTitle,
-        negativeKeywords: newForm.negativeKeywords ?? prev.negativeKeywords,
-        isolatedOnTransparentBackground: newForm.isolatedOnTransparentBackground ?? prev.isolatedOnTransparentBackground,
-        isolatedOnWhiteBackground: newForm.isolatedOnWhiteBackground ?? prev.isolatedOnWhiteBackground,
-        isVector: newForm.isVector ?? prev.isVector,
-        isIllustration: newForm.isIllustration ?? prev.isIllustration,
-        singleMode: newForm.singleMode ?? prev.singleMode
-      }));
+      setForm(prev => {
+        // Ensure singleMode and parallelMode are mutually exclusive
+        const singleMode = newForm.singleMode ?? prev.singleMode;
+        const parallelMode = singleMode ? false : (newForm.parallelMode ?? prev.parallelMode);
+        return {
+          ...prev,
+          ...newForm,
+          model: {
+            ...prev.model,
+            ...newForm.model,
+            preview: newForm.model.preview ?? prev.model.preview ?? false
+          },
+          videoHints: {
+            style: newForm.videoHints?.style ?? prev.videoHints.style,
+            tech: newForm.videoHints?.tech ?? prev.videoHints.tech
+          },
+          negativeTitle: newForm.negativeTitle ?? prev.negativeTitle,
+          negativeKeywords: newForm.negativeKeywords ?? prev.negativeKeywords,
+          isolatedOnTransparentBackground: newForm.isolatedOnTransparentBackground ?? prev.isolatedOnTransparentBackground,
+          isolatedOnWhiteBackground: newForm.isolatedOnWhiteBackground ?? prev.isolatedOnWhiteBackground,
+          isVector: newForm.isVector ?? prev.isVector,
+          isIllustration: newForm.isIllustration ?? prev.isIllustration,
+          singleMode,
+          parallelMode
+        };
+      });
     }
   }, []);
   
@@ -205,6 +219,21 @@ export default function Page() {
   useEffect(() => {
     updateBearerToken();
   }, [updateBearerToken]);
+
+  // Reset progress-related state when files are cleared
+  useEffect(() => {
+    if (files.length === 0) {
+      setProcessingProgress(0);
+      setSuccessCount(0);
+      setFailedCount(0);
+      setRows([]);
+      setGeneratingFiles(new Set());
+      setRetryingFiles(new Map());
+      setBusy(false);
+      setCompletionModalOpen(false);
+      setCompletionStats(null);
+    }
+  }, [files.length]);
 
   // Server rehydration removed - files are now stored client-side only
 
@@ -281,6 +310,199 @@ export default function Page() {
     }
   };
 
+  // Maximum number of concurrent workers for parallel generation
+  const MAX_CONCURRENT_WORKERS = 5;
+
+  // Helper function to process a single file
+  const processFile = async (
+    fileIndex: number,
+    allRows: Row[],
+    completedCountRef: { current: number },
+    unsubscribeCallbacks: Map<string, () => void>,
+    assignedKey?: string // Optional: specific API key for this worker
+  ): Promise<void> => {
+    if (shouldStopRef.current) {
+      return;
+    }
+
+    const file = files[fileIndex];
+    
+    // Mark file as generating
+    setGeneratingFiles(prev => new Set(prev).add(file.name));
+    
+    // Subscribe to retry events for this file
+    const unsubscribe = retrySSEClient.subscribe(file.name, (event) => {
+      if (event.type === 'retry-event') {
+        setRetryingFiles(prev => {
+          const next = new Map(prev);
+          next.set(file.name, {
+            attempt: event.attempt,
+            maxAttempts: event.maxAttempts,
+            errorType: event.errorType
+          });
+          return next;
+        });
+      }
+    });
+    unsubscribeCallbacks.set(file.name, unsubscribe);
+
+    try {
+      // Convert file to base64 if it's an image (lazy conversion)
+      let imageData: string | undefined;
+      
+      if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
+        try {
+          imageData = await fileToBase64WithCompression(file.file, true);
+          console.log(`✓ Extracted frame/image data for ${file.name}`);
+        } catch (error) {
+          console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
+          // For videos, continue without imageData (fallback to filename-based)
+        }
+      }
+      
+      const requestPayload = {
+        platform: form.platform,
+        titleLen: form.titleLen,
+        descLen: 150,
+        keywordCount: form.keywordCount,
+        assetType: form.assetType,
+        prefix: form.prefix || undefined,
+        suffix: form.suffix || undefined,
+        negativeTitle: form.negativeTitle,
+        negativeKeywords: form.negativeKeywords,
+        model: { provider: form.model.provider, preview: form.model.preview },
+        files: [file].map(f => ({ 
+          name: f.name, 
+          type: f.type, 
+          url: f.url, 
+          ext: f.ext,
+          imageData: imageData // Include base64 data for images/videos
+        })),
+        videoHints: form.assetType === 'video' ? form.videoHints : undefined,
+        singleMode: form.singleMode,
+        isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
+        isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
+        isVector: form.isVector,
+        isIllustration: form.isIllustration,
+        userId: user?.uid,
+        userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
+        userEmail: user?.email || undefined,
+        userPhotoURL: user?.photoURL || undefined
+      };
+      
+      console.log(`📤 API Request for ${file.name}:`, {
+        toggleValues: {
+          isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
+          isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
+          isVector: requestPayload.isVector,
+          isIllustration: requestPayload.isIllustration
+        }
+      });
+      
+      // Use assigned key if provided (for parallel workers), otherwise fall back to bearerRef
+      const apiKey = assignedKey || bearerRef.current;
+      
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+        },
+        body: JSON.stringify(requestPayload)
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.message || errorData.error || `Failed to generate metadata for ${file.name}`;
+        
+        // Add error row immediately
+        const errorRow: Row = {
+          filename: file.name,
+          platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+          title: `[ERROR] ${errorMsg}`,
+          description: 'Generation failed. Please check your API key and try again.',
+          keywords: [],
+          assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+          extension: file.ext || '',
+          error: errorMsg
+        };
+        allRows.push(errorRow);
+        setRows([...allRows]); // Update UI immediately with error
+        
+        // Remove from generating set
+        setGeneratingFiles(prev => {
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        unsubscribe();
+        unsubscribeCallbacks.delete(file.name);
+        completedCountRef.current++;
+        setFailedCount(prev => prev + 1);
+        const completed = completedCountRef.current;
+        setProcessingProgress(Math.round((completed / files.length) * 100));
+        return;
+      }
+      
+      const data = await res.json();
+      if (data.rows && data.rows.length > 0) {
+        const newRow = data.rows[0];
+        allRows.push(newRow);
+        // Update UI immediately after each generation
+        setRows([...allRows]);
+        
+        // Track generation
+        await trackGenerationInFirestore(data.rows.length);
+        
+        // Remove from generating set
+        setGeneratingFiles(prev => {
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        unsubscribe();
+        unsubscribeCallbacks.delete(file.name);
+        completedCountRef.current++;
+        // Only count as success if there's no error
+        if (!newRow.error) {
+          setSuccessCount(prev => prev + 1);
+        } else {
+          setFailedCount(prev => prev + 1);
+        }
+        const completed = completedCountRef.current;
+        setProcessingProgress(Math.round((completed / files.length) * 100));
+      }
+    } catch (fileError: any) {
+      unsubscribe();
+      unsubscribeCallbacks.delete(file.name);
+      console.error(`Error processing ${file.name}:`, fileError);
+      // Add error row for this file
+      const errorRow: Row = {
+        filename: file.name,
+        platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+        title: `[ERROR] ${fileError.message || 'Generation failed'}`,
+        description: 'Generation failed. Please check your API key and try again.',
+        keywords: [],
+        assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+        extension: file.ext || '',
+        error: fileError.message || 'Unknown error'
+      };
+      allRows.push(errorRow);
+      setRows([...allRows]); // Update UI immediately with error
+      
+      // Remove from generating set
+      setGeneratingFiles(prev => {
+        const next = new Set(prev);
+        next.delete(file.name);
+        return next;
+      });
+      completedCountRef.current++;
+      setFailedCount(prev => prev + 1);
+      const completed = completedCountRef.current;
+      setProcessingProgress(Math.round((completed / files.length) * 100));
+    }
+  };
+
   const onGenerateAll = async () => {
     if (!files.length) return;
     
@@ -304,174 +526,97 @@ export default function Page() {
     setBusy(true);
     shouldStopRef.current = false; // Reset stop flag
     setProcessingProgress(0);
+    setSuccessCount(0);
+    setFailedCount(0);
     setCompletionModalOpen(false); // Close any existing modal
     // Don't clear rows - preserve existing results and only update as new ones come in
     
     try {
       const allRows: Row[] = [];
+      const completedCountRef = { current: 0 };
+      const unsubscribeCallbacks = new Map<string, () => void>();
       
       if (form.singleMode) {
         // Single mode: Process one file at a time and show results immediately
-        
         for (let i = 0; i < files.length; i++) {
           if (shouldStopRef.current) {
             console.log('🛑 Generation stopped by user');
             setBusy(false);
             setGeneratingFiles(new Set());
+            // Clean up all subscriptions
+            unsubscribeCallbacks.forEach(unsub => unsub());
             return;
           }
           
-          setProcessingProgress(Math.round(((i + 1) / files.length) * 100));
-          
-          // Mark file as generating
-          setGeneratingFiles(prev => new Set(prev).add(files[i].name));
-          
-          // Subscribe to retry events for this file
-          const unsubscribe = retrySSEClient.subscribe(files[i].name, (event) => {
-            if (event.type === 'retry-event') {
-              setRetryingFiles(prev => {
-                const next = new Map(prev);
-                next.set(files[i].name, {
-                  attempt: event.attempt,
-                  maxAttempts: event.maxAttempts,
-                  errorType: event.errorType
-                });
-                return next;
-              });
-            }
+          await processFile(i, allRows, completedCountRef, unsubscribeCallbacks);
+        }
+      } else if (form.parallelMode) {
+        // Parallel mode: Use worker queue to process multiple files concurrently
+        setProcessingProgress(0); // Start at 0, will update as files complete
+        
+        // Initialize key pool for the current provider
+        await keyPoolManager.initialize(form.model.provider);
+        const availableKeys = keyPoolManager.getKeyCount(form.model.provider);
+        
+        if (availableKeys === 0) {
+          setError({
+            id: Date.now().toString(),
+            message: `No keys selected for parallel generation. Please select keys in the "API Secrets" modal.`,
+            severity: 'error',
+            duration: 7000
           });
+          setBusy(false);
+          return;
+        }
+        
+        console.log(`🔑 Parallel mode: Using ${availableKeys} selected key(s) for ${form.model.provider}`);
+        
+        let currentIndex = 0;
+        const total = files.length;
+        
+        // Worker function that processes files from the queue
+        // Each worker gets assigned a unique API key from the pool
+        const worker = async (workerId: number) => {
+          // Get assigned key for this worker (round-robin distribution)
+          const assignedKey = keyPoolManager.getKeyByIndex(form.model.provider, workerId);
           
-          try {
-            // Convert file to base64 if it's an image (lazy conversion)
-            const file = files[i];
-            let imageData: string | undefined;
-            
-            if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
-              try {
-                imageData = await fileToBase64WithCompression(file.file, true);
-                console.log(`✓ Extracted frame/image data for ${file.name}`);
-              } catch (error) {
-                console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
-                // For videos, continue without imageData (fallback to filename-based)
-              }
-            }
-            
-            const requestPayload = {
-              platform: form.platform,
-              titleLen: form.titleLen,
-              descLen: 150,
-              keywordCount: form.keywordCount,
-              assetType: form.assetType,
-              prefix: form.prefix || undefined,
-              suffix: form.suffix || undefined,
-              negativeTitle: form.negativeTitle,
-              negativeKeywords: form.negativeKeywords,
-              model: { provider: form.model.provider, preview: form.model.preview },
-              files: [files[i]].map(f => ({ 
-                name: f.name, 
-                type: f.type, 
-                url: f.url, 
-                ext: f.ext,
-                imageData: imageData // Include base64 data for images/videos
-              })),
-              videoHints: form.assetType === 'video' ? form.videoHints : undefined,
-              singleMode: true,
-              isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
-              isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
-              isVector: form.isVector,
-              isIllustration: form.isIllustration,
-              userId: user?.uid,
-              userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
-              userEmail: user?.email || undefined,
-              userPhotoURL: user?.photoURL || undefined
-            };
-            
-            console.log(`📤 API Request (single mode) for ${files[i].name}:`, {
-              toggleValues: {
-                isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
-                isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
-                isVector: requestPayload.isVector,
-                isIllustration: requestPayload.isIllustration
-              }
-            });
-            
-            const res = await fetch('/api/generate', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(bearerRef.current ? { Authorization: `Bearer ${bearerRef.current}` } : {})
-              },
-              body: JSON.stringify(requestPayload)
-            });
-            
-            if (!res.ok) {
-              const errorData = await res.json().catch(() => ({}));
-              const errorMsg = errorData.message || errorData.error || `Failed to generate metadata for ${files[i].name}`;
-              
-              // Add error row immediately
-              const errorRow: Row = {
-                filename: files[i].name,
-                platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
-                title: `[ERROR] ${errorMsg}`,
-                description: 'Generation failed. Please check your API key and try again.',
-                keywords: [],
-                assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
-                extension: files[i].ext || '',
-                error: errorMsg
-              };
-              allRows.push(errorRow);
-              setRows([...allRows]); // Update UI immediately with error
-              
-              // Remove from generating set
-              setGeneratingFiles(prev => {
-                const next = new Set(prev);
-                next.delete(files[i].name);
-                return next;
-              });
-              unsubscribe();
-              continue;
-            }
-            
-            const data = await res.json();
-            if (data.rows && data.rows.length > 0) {
-              const newRow = data.rows[0];
-              allRows.push(newRow);
-              // Update UI immediately after each generation
-              setRows([...allRows]);
-              
-              // Track generation
-              await trackGenerationInFirestore(data.rows.length);
-              
-              // Remove from generating set
-              setGeneratingFiles(prev => {
-                const next = new Set(prev);
-                next.delete(files[i].name);
-                return next;
-              });
-              unsubscribe();
-            }
-          } catch (fileError: any) {
-            unsubscribe();
-            console.error(`Error processing ${files[i].name}:`, fileError);
-            // Add error row for this file
-            const errorRow: Row = {
-              filename: files[i].name,
-              platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
-              title: `[ERROR] ${fileError.message || 'Generation failed'}`,
-              description: 'Generation failed. Please check your API key and try again.',
-              keywords: [],
-              assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
-              extension: files[i].ext || '',
-              error: fileError.message || 'Unknown error'
-            };
-            allRows.push(errorRow);
-            setRows([...allRows]); // Update UI immediately with error
+          if (!assignedKey) {
+            console.error(`❌ Worker ${workerId}: No API key available`);
+            return;
           }
+          
+          console.log(`👷 Worker ${workerId}: Assigned API key ${assignedKey.substring(0, 8)}...`);
+          
+          while (true) {
+            if (shouldStopRef.current) {
+              break;
+            }
+            
+            const myIndex = currentIndex++;
+            if (myIndex >= total) {
+              break; // Queue empty, this worker stops
+            }
+            
+            await processFile(myIndex, allRows, completedCountRef, unsubscribeCallbacks, assignedKey);
+          }
+        };
+        
+        // Start multiple workers in parallel, each with its own API key
+        const numWorkers = Math.min(MAX_CONCURRENT_WORKERS, files.length, availableKeys);
+        console.log(`⚡ Starting ${numWorkers} parallel workers with ${availableKeys} selected key(s)`);
+        
+        await Promise.all(
+          Array.from({ length: numWorkers }, (_, i) => worker(i))
+        );
+        
+        // If stopped early, clean up remaining subscriptions
+        if (shouldStopRef.current) {
+          console.log('🛑 Generation stopped by user');
+          unsubscribeCallbacks.forEach(unsub => unsub());
         }
       } else {
-        // Batch mode: Process files sequentially to show progressive results
-        // Process files one-by-one (similar to single mode) for progressive display
-        setProcessingProgress(10); // Show initial progress
+        // Default sequential mode: Process files one-by-one
+        setProcessingProgress(0); // Start at 0, will update as files complete
         
         // Log bearer token status for debugging
         if (process.env.NODE_ENV === 'development') {
@@ -483,146 +628,17 @@ export default function Page() {
             console.log('🛑 Generation stopped by user');
             setBusy(false);
             setGeneratingFiles(new Set());
+            // Clean up all subscriptions
+            unsubscribeCallbacks.forEach(unsub => unsub());
             return;
           }
           
-          setProcessingProgress(Math.round(((i + 1) / files.length) * 100));
-          
-          // Mark file as generating
-          setGeneratingFiles(prev => new Set(prev).add(files[i].name));
-          
-          try {
-            // Convert file to base64 if it's an image (lazy conversion)
-            const file = files[i];
-            let imageData: string | undefined;
-            
-            if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
-              try {
-                imageData = await fileToBase64WithCompression(file.file, true);
-                console.log(`✓ Extracted frame/image data for ${file.name}`);
-              } catch (error) {
-                console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
-                // For videos, continue without imageData (fallback to filename-based)
-              }
-            }
-            
-            const requestPayload = {
-              platform: form.platform,
-              titleLen: form.titleLen,
-              descLen: 150,
-              keywordCount: form.keywordCount,
-              assetType: form.assetType,
-              prefix: form.prefix || undefined,
-              suffix: form.suffix || undefined,
-              negativeTitle: form.negativeTitle,
-              negativeKeywords: form.negativeKeywords,
-              model: { provider: form.model.provider, preview: form.model.preview },
-              files: [files[i]].map(f => ({ 
-                name: f.name, 
-                type: f.type, 
-                url: f.url, 
-                ext: f.ext,
-                imageData: imageData // Include base64 data for images/videos
-              })),
-              videoHints: form.assetType === 'video' ? form.videoHints : undefined,
-              singleMode: form.singleMode,
-              isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
-              isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
-              isVector: form.isVector,
-              isIllustration: form.isIllustration,
-              userId: user?.uid,
-              userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
-              userEmail: user?.email || undefined,
-              userPhotoURL: user?.photoURL || undefined
-            };
-            
-            console.log(`📤 API Request (batch mode, file ${i + 1}/${files.length}) for ${files[i].name}:`, {
-              toggleValues: {
-                isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
-                isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
-                isVector: requestPayload.isVector,
-                isIllustration: requestPayload.isIllustration
-              }
-            });
-            
-            const res = await fetch('/api/generate', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(bearerRef.current ? { Authorization: `Bearer ${bearerRef.current}` } : {})
-              },
-              body: JSON.stringify(requestPayload)
-            });
-            
-            if (!res.ok) {
-              const errorData = await res.json().catch(() => ({}));
-              const errorMsg = errorData.message || errorData.error || `Failed to generate metadata for ${files[i].name}`;
-              
-              // Add error row immediately
-              const errorRow: Row = {
-                filename: files[i].name,
-                platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
-                title: `[ERROR] ${errorMsg}`,
-                description: 'Generation failed. Please check your API key and try again.',
-                keywords: [],
-                assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
-                extension: files[i].ext || '',
-                error: errorMsg
-              };
-              allRows.push(errorRow);
-              setRows([...allRows]); // Update UI immediately with error
-              
-              // Remove from generating set
-              setGeneratingFiles(prev => {
-                const next = new Set(prev);
-                next.delete(files[i].name);
-                return next;
-              });
-              continue;
-            }
-            
-            const data = await res.json();
-            if (data.rows && data.rows.length > 0) {
-              const newRow = data.rows[0];
-              allRows.push(newRow);
-              // Update UI immediately after each generation
-              setRows([...allRows]);
-              
-              // Track generation
-              await trackGenerationInFirestore(data.rows.length);
-              
-              // Remove from generating set
-              setGeneratingFiles(prev => {
-                const next = new Set(prev);
-                next.delete(files[i].name);
-                return next;
-              });
-            }
-          } catch (fileError: any) {
-            console.error(`Error processing ${files[i].name}:`, fileError);
-            // Add error row for this file
-            const errorRow: Row = {
-              filename: files[i].name,
-              platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
-              title: `[ERROR] ${fileError.message || 'Generation failed'}`,
-              description: 'Generation failed. Please check your API key and try again.',
-              keywords: [],
-              assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
-              extension: files[i].ext || '',
-              error: fileError.message || 'Unknown error'
-            };
-            allRows.push(errorRow);
-            setRows([...allRows]); // Update UI immediately with error
-            
-            // Remove from generating set
-            setGeneratingFiles(prev => {
-              const next = new Set(prev);
-              next.delete(files[i].name);
-              return next;
-            });
-          }
+          await processFile(i, allRows, completedCountRef, unsubscribeCallbacks);
         }
       }
+      
+      // Clean up any remaining subscriptions
+      unsubscribeCallbacks.forEach(unsub => unsub());
       
       // Final update with all rows (in case any were missed)
       setRows(allRows);
@@ -705,6 +721,202 @@ export default function Page() {
     shouldStopRef.current = true;
     setBusy(false);
     setGeneratingFiles(new Set()); // Clear generating files immediately
+  };
+
+  // Helper function to regenerate a single file (updates existing row)
+  const regenerateFile = async (
+    fileIndex: number,
+    filesToRegenerate: typeof files,
+    completedCountRef: { current: number },
+    unsubscribeCallbacks: Map<string, () => void>,
+    assignedKey?: string // Optional: specific API key for this worker
+  ): Promise<void> => {
+    if (shouldStopRef.current) {
+      return;
+    }
+
+    const file = filesToRegenerate[fileIndex];
+    
+    // Mark file as generating
+    setGeneratingFiles(prev => new Set(prev).add(file.name));
+    
+    // Subscribe to retry events for this file
+    const unsubscribe = retrySSEClient.subscribe(file.name, (event) => {
+      if (event.type === 'retry-event') {
+        setRetryingFiles(prev => {
+          const next = new Map(prev);
+          next.set(file.name, {
+            attempt: event.attempt,
+            maxAttempts: event.maxAttempts,
+            errorType: event.errorType
+          });
+          return next;
+        });
+      }
+    });
+    unsubscribeCallbacks.set(file.name, unsubscribe);
+
+    try {
+      // Convert file to base64 if it's an image (lazy conversion)
+      let imageData: string | undefined;
+      
+      if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
+        try {
+          imageData = await fileToBase64WithCompression(file.file, true);
+          console.log(`✓ Extracted frame/image data for ${file.name}`);
+        } catch (error) {
+          console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
+          // For videos, continue without imageData (fallback to filename-based)
+        }
+      }
+      
+      const requestPayload = {
+        platform: form.platform,
+        titleLen: form.titleLen,
+        descLen: 150,
+        keywordCount: form.keywordCount,
+        assetType: form.assetType,
+        prefix: form.prefix || undefined,
+        suffix: form.suffix || undefined,
+        negativeTitle: form.negativeTitle,
+        negativeKeywords: form.negativeKeywords,
+        model: { provider: form.model.provider, preview: form.model.preview },
+        files: [file].map(f => ({ 
+          name: f.name, 
+          type: f.type, 
+          url: f.url, 
+          ext: f.ext,
+          imageData: imageData // Include base64 data for images/videos
+        })),
+        videoHints: form.assetType === 'video' ? form.videoHints : undefined,
+        singleMode: form.singleMode,
+        isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
+        isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
+        isVector: form.isVector,
+        isIllustration: form.isIllustration,
+        userId: user?.uid,
+        userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
+        userEmail: user?.email || undefined,
+        userPhotoURL: user?.photoURL || undefined
+      };
+      
+      console.log(`📤 API Request (regenerate) for ${file.name}:`, {
+        toggleValues: {
+          isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
+          isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
+          isVector: requestPayload.isVector,
+          isIllustration: requestPayload.isIllustration
+        }
+      });
+      
+      // Use assigned key if provided (for parallel workers), otherwise fall back to bearerRef
+      const apiKey = assignedKey || bearerRef.current;
+      
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+        },
+        body: JSON.stringify(requestPayload)
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.message || errorData.error || `Failed to regenerate metadata for ${file.name}`;
+        
+        // Update row with error
+        setRows(prev => {
+          const updated = [...prev];
+          const idx = updated.findIndex(r => r.filename === file.name);
+          if (idx >= 0) {
+            updated[idx] = {
+              ...updated[idx],
+              title: `[ERROR] ${errorMsg}`,
+              error: errorMsg
+            };
+          }
+          return updated;
+        });
+        
+        // Remove from generating set
+        setGeneratingFiles(prev => {
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        unsubscribe();
+        unsubscribeCallbacks.delete(file.name);
+        completedCountRef.current++;
+        setFailedCount(prev => prev + 1);
+        const completed = completedCountRef.current;
+        setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
+        return;
+      }
+      
+      const data = await res.json();
+      if (data.rows && data.rows.length > 0) {
+        const newRow = data.rows[0];
+        // Update row progressively
+        setRows(prev => {
+          const updated = [...prev];
+          const idx = updated.findIndex(r => r.filename === file.name);
+          if (idx >= 0) {
+            updated[idx] = newRow;
+          } else {
+            updated.push(newRow);
+          }
+          return updated;
+        });
+        
+        // Track generation
+        await trackGenerationInFirestore(data.rows.length);
+        
+        // Remove from generating set
+        setGeneratingFiles(prev => {
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        unsubscribe();
+        unsubscribeCallbacks.delete(file.name);
+        completedCountRef.current++;
+        // Only count as success if there's no error
+        if (!newRow.error) {
+          setSuccessCount(prev => prev + 1);
+        } else {
+          setFailedCount(prev => prev + 1);
+        }
+        const completed = completedCountRef.current;
+        setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
+      }
+    } catch (fileError: any) {
+      unsubscribe();
+      unsubscribeCallbacks.delete(file.name);
+      console.error(`Error regenerating ${file.name}:`, fileError);
+      // Update row with error
+      setRows(prev => {
+        const updated = [...prev];
+        const idx = updated.findIndex(r => r.filename === file.name);
+        if (idx >= 0) {
+          updated[idx] = {
+            ...updated[idx],
+            title: `[ERROR] ${fileError.message || 'Regeneration failed'}`,
+            error: fileError.message || 'Unknown error'
+          };
+        }
+        return updated;
+      });
+      
+      // Remove from generating set
+      setGeneratingFiles(prev => {
+        const next = new Set(prev);
+        next.delete(file.name);
+        return next;
+      });
+      completedCountRef.current++;
+      setProcessingProgress(Math.round((completedCountRef.current / filesToRegenerate.length) * 100));
+    }
   };
 
   const onRegenerate = async (filename: string) => {
@@ -868,158 +1080,109 @@ export default function Page() {
     setBusy(true);
     shouldStopRef.current = false;
     setProcessingProgress(0);
+    setSuccessCount(0);
+    setFailedCount(0);
     
     try {
-      for (let i = 0; i < filesWithResults.length; i++) {
-        if (shouldStopRef.current) {
-          console.log('🛑 Regeneration stopped by user');
+      const completedCountRef = { current: 0 };
+      const unsubscribeCallbacks = new Map<string, () => void>();
+      
+      if (form.singleMode) {
+        // Single mode: Process one file at a time
+        for (let i = 0; i < filesWithResults.length; i++) {
+          if (shouldStopRef.current) {
+            console.log('🛑 Regeneration stopped by user');
+            setBusy(false);
+            setGeneratingFiles(new Set());
+            unsubscribeCallbacks.forEach(unsub => unsub());
+            return;
+          }
+          
+          await regenerateFile(i, filesWithResults, completedCountRef, unsubscribeCallbacks);
+        }
+      } else if (form.parallelMode) {
+        // Parallel mode: Use worker queue to process multiple files concurrently
+        setProcessingProgress(0); // Start at 0, will update as files complete
+        
+        // Initialize key pool for the current provider
+        await keyPoolManager.initialize(form.model.provider);
+        const availableKeys = keyPoolManager.getKeyCount(form.model.provider);
+        
+        if (availableKeys === 0) {
+          setError({
+            id: Date.now().toString(),
+            message: `No keys selected for parallel generation. Please select keys in the "API Secrets" modal.`,
+            severity: 'error',
+            duration: 7000
+          });
           setBusy(false);
-          setGeneratingFiles(new Set());
           return;
         }
         
-        const file = filesWithResults[i];
-        setProcessingProgress(Math.round(((i + 1) / filesWithResults.length) * 100));
+        console.log(`🔑 Regenerate (parallel mode): Using ${availableKeys} selected key(s) for ${form.model.provider}`);
         
-        // Mark file as generating for animation
-        setGeneratingFiles(prev => new Set(prev).add(file.name));
+        let currentIndex = 0;
+        const total = filesWithResults.length;
         
-        try {
-          // Convert file to base64 if it's an image or video (lazy conversion)
-          let imageData: string | undefined;
+        // Worker function that processes files from the queue
+        // Each worker gets assigned a unique API key from the pool
+        const worker = async (workerId: number) => {
+          // Get assigned key for this worker (round-robin distribution)
+          const assignedKey = keyPoolManager.getKeyByIndex(form.model.provider, workerId);
           
-          if (file.file && (isImageFile(file.file) || isVideoFile(file.file))) {
-            try {
-              imageData = await fileToBase64WithCompression(file.file, true);
-              console.log(`✓ Extracted frame/image data for ${file.name}`);
-            } catch (error) {
-              console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
-              // For videos, continue without imageData (fallback to filename-based)
-            }
+          if (!assignedKey) {
+            console.error(`❌ Worker ${workerId}: No API key available`);
+            return;
           }
           
-          const requestPayload = {
-            platform: form.platform,
-            titleLen: form.titleLen,
-            descLen: 150,
-            keywordCount: form.keywordCount,
-            assetType: form.assetType,
-            prefix: form.prefix || undefined,
-            suffix: form.suffix || undefined,
-            negativeTitle: form.negativeTitle,
-            negativeKeywords: form.negativeKeywords,
-            model: { provider: form.model.provider, preview: form.model.preview },
-            files: [file].map(f => ({ 
-              name: f.name, 
-              type: f.type, 
-              url: f.url, 
-              ext: f.ext,
-              imageData: imageData // Include base64 data for images/videos
-            })),
-            videoHints: form.assetType === 'video' ? form.videoHints : undefined,
-            isolatedOnTransparentBackground: form.isolatedOnTransparentBackground,
-            isolatedOnWhiteBackground: form.isolatedOnWhiteBackground,
-            isVector: form.isVector,
-            isIllustration: form.isIllustration,
-            userId: user?.uid,
-            userDisplayName: user?.displayName || user?.email?.split('@')[0] || 'User',
-            userEmail: user?.email || undefined,
-            userPhotoURL: user?.photoURL || undefined
-          };
+          console.log(`👷 Regenerate Worker ${workerId}: Assigned API key ${assignedKey.substring(0, 8)}...`);
           
-          console.log(`📤 API Request (regenerate all, file ${i + 1}/${filesWithResults.length}) for ${file.name}:`, {
-            toggleValues: {
-              isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
-              isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
-              isVector: requestPayload.isVector,
-              isIllustration: requestPayload.isIllustration
+          while (true) {
+            if (shouldStopRef.current) {
+              break;
             }
-          });
-          
-          const res = await fetch('/api/generate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(bearerRef.current ? { Authorization: `Bearer ${bearerRef.current}` } : {})
-            },
-            body: JSON.stringify(requestPayload)
-          });
-          
-          if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            const errorMsg = errorData.message || errorData.error || `Failed to regenerate metadata for ${file.name}`;
             
-            // Update row with error
-            setRows(prev => {
-              const updated = [...prev];
-              const idx = updated.findIndex(r => r.filename === file.name);
-              if (idx >= 0) {
-                updated[idx] = {
-                  ...updated[idx],
-                  title: `[ERROR] ${errorMsg}`,
-                  error: errorMsg
-                };
-              }
-              return updated;
-            });
+            const myIndex = currentIndex++;
+            if (myIndex >= total) {
+              break; // Queue empty, this worker stops
+            }
             
-            // Remove from generating set
-            setGeneratingFiles(prev => {
-              const next = new Set(prev);
-              next.delete(file.name);
-              return next;
-            });
-            continue;
+            await regenerateFile(myIndex, filesWithResults, completedCountRef, unsubscribeCallbacks, assignedKey);
+          }
+        };
+        
+        // Start multiple workers in parallel, each with its own API key
+        const numWorkers = Math.min(MAX_CONCURRENT_WORKERS, filesWithResults.length, availableKeys);
+        console.log(`⚡ Starting ${numWorkers} parallel regenerate workers with ${availableKeys} selected key(s)`);
+        
+        await Promise.all(
+          Array.from({ length: numWorkers }, (_, i) => worker(i))
+        );
+        
+        // If stopped early, clean up remaining subscriptions
+        if (shouldStopRef.current) {
+          console.log('🛑 Regeneration stopped by user');
+          unsubscribeCallbacks.forEach(unsub => unsub());
+        }
+      } else {
+        // Default sequential mode: Process files one-by-one
+        setProcessingProgress(0); // Start at 0, will update as files complete
+        
+        for (let i = 0; i < filesWithResults.length; i++) {
+          if (shouldStopRef.current) {
+            console.log('🛑 Regeneration stopped by user');
+            setBusy(false);
+            setGeneratingFiles(new Set());
+            unsubscribeCallbacks.forEach(unsub => unsub());
+            return;
           }
           
-          const data = await res.json();
-          if (data.rows && data.rows.length > 0) {
-            // Update row progressively
-            setRows(prev => {
-              const updated = [...prev];
-              const idx = updated.findIndex(r => r.filename === file.name);
-              if (idx >= 0) {
-                updated[idx] = data.rows[0];
-              } else {
-                updated.push(data.rows[0]);
-              }
-              return updated;
-            });
-            
-            // Track generation
-            await trackGenerationInFirestore(data.rows.length);
-          }
-          
-          // Remove from generating set
-          setGeneratingFiles(prev => {
-            const next = new Set(prev);
-            next.delete(file.name);
-            return next;
-          });
-        } catch (fileError: any) {
-          console.error(`Error regenerating ${file.name}:`, fileError);
-          // Update row with error
-          setRows(prev => {
-            const updated = [...prev];
-            const idx = updated.findIndex(r => r.filename === file.name);
-            if (idx >= 0) {
-              updated[idx] = {
-                ...updated[idx],
-                title: `[ERROR] ${fileError.message || 'Regeneration failed'}`,
-                error: fileError.message || 'Unknown error'
-              };
-            }
-            return updated;
-          });
-          
-          // Remove from generating set
-          setGeneratingFiles(prev => {
-            const next = new Set(prev);
-            next.delete(file.name);
-            return next;
-          });
+          await regenerateFile(i, filesWithResults, completedCountRef, unsubscribeCallbacks);
         }
       }
+      
+      // Clean up any remaining subscriptions
+      unsubscribeCallbacks.forEach(unsub => unsub());
     } catch (e: any) {
       console.error('Regenerate all error:', e);
       setError({
@@ -1146,6 +1309,8 @@ export default function Page() {
               onRowsUpdate={setRows}
               generatingFiles={generatingFiles}
               retryingFiles={retryingFiles}
+              successCount={successCount}
+              failedCount={failedCount}
             />
           </div>
         </div>

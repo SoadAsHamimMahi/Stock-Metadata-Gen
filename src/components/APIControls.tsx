@@ -27,7 +27,13 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
   }, [keyModalOpen]);
 
   const set = <K extends keyof FormState>(key: K, v: FormState[K]) => {
-    onChange({ ...value, [key]: v });
+    if (key === 'singleMode' && v === true) {
+      onChange({ ...value, [key]: v, parallelMode: false });
+    } else if (key === 'parallelMode' && v === true) {
+      onChange({ ...value, [key]: v, singleMode: false });
+    } else {
+      onChange({ ...value, [key]: v });
+    }
   };
   const setNested = <K extends keyof FormState, T extends keyof FormState[K]>(key: K, sub: T, v: any) => {
     onChange({ ...value, [key]: { ...(value[key] as any), [sub]: v } });
@@ -96,11 +102,14 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
             </div>
           </label>
 
-          <label className="inline-flex items-start gap-3 cursor-pointer group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors">
+          <label 
+            className={`inline-flex items-start gap-3 group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors ${value.parallelMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
             <input 
               type="checkbox" 
-              checked={value.singleMode} 
+              checked={!!value.singleMode} 
               onChange={(e) => set('singleMode', e.target.checked)}
+              disabled={!!value.parallelMode}
               className="w-5 h-5 mt-0.5"
             />
             <div className="flex-1">
@@ -111,6 +120,28 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
               <p className="text-sm text-text-secondary mt-1.5 flex items-start gap-1.5">
                 <span className="text-green-bright">💡</span>
                 <span>Process files one at a time (slower but prevents API rate limits). Use when processing many files or getting rate limit errors.</span>
+              </p>
+            </div>
+          </label>
+
+          <label 
+            className={`inline-flex items-start gap-3 group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors ${value.singleMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <input 
+              type="checkbox" 
+              checked={!!value.parallelMode} 
+              onChange={(e) => set('parallelMode', e.target.checked)}
+              disabled={!!value.singleMode}
+              className="w-5 h-5 mt-0.5"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">⚡</span>
+                <span className="text-base font-semibold text-text-primary">Parallel Generation Mode</span>
+              </div>
+              <p className="text-sm text-text-secondary mt-1.5 flex items-start gap-1.5">
+                <span className="text-green-bright">💡</span>
+                <span>Faster mode (runs several files at once, may hit API limits). Only available when Single Generation Mode is disabled.</span>
               </p>
             </div>
           </label>

@@ -99,9 +99,37 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
                   <input type="checkbox" checked={!!value.model.preview} onChange={(e)=>setNested('model','preview',e.target.checked)} />
                   Use Gemini Preview Model
                 </label>
-                <label className="inline-flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={value.singleMode} onChange={(e)=>set('singleMode', e.target.checked)} />
+                <label 
+                  className={`inline-flex items-center gap-2 text-sm ${value.parallelMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <input 
+                    type="checkbox" 
+                    checked={!!value.singleMode} 
+                    onChange={(e) => {
+                      set('singleMode', e.target.checked);
+                      if (e.target.checked) {
+                        set('parallelMode', false);
+                      }
+                    }} 
+                    disabled={!!value.parallelMode}
+                  />
                   Single Generation Mode (sequential)
+                </label>
+                <label 
+                  className={`inline-flex items-center gap-2 text-sm ${value.singleMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <input 
+                    type="checkbox" 
+                    checked={!!value.parallelMode} 
+                    onChange={(e) => {
+                      set('parallelMode', e.target.checked);
+                      if (e.target.checked) {
+                        set('singleMode', false);
+                      }
+                    }} 
+                    disabled={!!value.singleMode}
+                  />
+                  Parallel Generation Mode (faster, may hit API limits)
                 </label>
               </div>
 
