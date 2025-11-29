@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLeaderboard } from '@/lib/firestore';
 
+// Force dynamic rendering to prevent static generation issues and secrets exposure
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
