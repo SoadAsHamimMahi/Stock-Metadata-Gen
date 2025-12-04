@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
+import { getWeekStart, getWeekEnd, getMonthStart, getMonthEnd, formatDateRange } from '@/lib/firestore';
 
 interface LeaderboardEntry {
   userId: string;
@@ -69,6 +70,21 @@ export default function Leaderboard({ period }: LeaderboardProps) {
     return null;
   };
 
+  // Calculate date range for display (always current period)
+  const dateRange = useMemo(() => {
+    const date = new Date();
+    if (period === 'weekly') {
+      const start = getWeekStart(date);
+      const end = getWeekEnd(date);
+      return formatDateRange(start, end, 'weekly');
+    } else {
+      // For monthly, use the month identifier format but convert to full dates for display
+      const start = getMonthStart(date); // Returns "YYYY-MM"
+      const end = getMonthEnd(date); // Returns "YYYY-MM-DD"
+      return formatDateRange(start, end, 'monthly');
+    }
+  }, [period]);
+
   if (loading && entries.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -90,6 +106,14 @@ export default function Leaderboard({ period }: LeaderboardProps) {
 
   return (
     <div className="space-y-3">
+      {/* Date Range Display */}
+      <div className="mb-4 p-3 bg-dark-surface/50 rounded-lg border border-green-accent/20">
+        <p className="text-sm text-text-secondary text-center">
+          <span className="font-semibold text-text-primary">Period:</span>{' '}
+          <span className="text-green-bright">{dateRange}</span>
+        </p>
+      </div>
+
       {entries.length === 0 ? (
         <div className="text-center py-12 text-text-secondary">
           <p>No data available yet. Be the first to generate images!</p>

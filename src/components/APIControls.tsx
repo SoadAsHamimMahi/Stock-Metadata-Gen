@@ -83,55 +83,13 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
         </div>
 
         <div className="space-y-4">
-          <label className="inline-flex items-start gap-3 cursor-pointer group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors">
-            <input 
-              type="checkbox" 
-              checked={!!value.model.preview} 
-              onChange={(e) => setNested('model', 'preview', e.target.checked)}
-              className="w-5 h-5 mt-0.5"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">✨</span>
-                <span className="text-base font-semibold text-text-primary">Use Gemini Preview Model</span>
-              </div>
-              <p className="text-sm text-text-secondary mt-1.5 flex items-start gap-1.5">
-                <span className="text-green-bright">💡</span>
-                <span>Use Gemini 1.5 Pro (slower, higher quality) instead of Gemini 2.0 Flash (faster, default). Enable for better results when quality is more important than speed.</span>
-              </p>
-            </div>
-          </label>
-
           <label 
-            className={`inline-flex items-start gap-3 group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors ${value.parallelMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-          >
-            <input 
-              type="checkbox" 
-              checked={!!value.singleMode} 
-              onChange={(e) => set('singleMode', e.target.checked)}
-              disabled={!!value.parallelMode}
-              className="w-5 h-5 mt-0.5"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">📦</span>
-                <span className="text-base font-semibold text-text-primary">Single Generation Mode</span>
-              </div>
-              <p className="text-sm text-text-secondary mt-1.5 flex items-start gap-1.5">
-                <span className="text-green-bright">💡</span>
-                <span>Process files one at a time (slower but prevents API rate limits). Use when processing many files or getting rate limit errors.</span>
-              </p>
-            </div>
-          </label>
-
-          <label 
-            className={`inline-flex items-start gap-3 group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors ${value.singleMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className="inline-flex items-start gap-3 group p-3 bg-dark-surface/20 rounded-lg border border-green-accent/10 hover:border-green-accent/30 transition-colors cursor-pointer"
           >
             <input 
               type="checkbox" 
               checked={!!value.parallelMode} 
               onChange={(e) => set('parallelMode', e.target.checked)}
-              disabled={!!value.singleMode}
               className="w-5 h-5 mt-0.5"
             />
             <div className="flex-1">

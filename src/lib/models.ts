@@ -197,6 +197,10 @@ This override takes precedence over everything else in this prompt.
     ? `\n\n⚠️ USER-SPECIFIED FILE ATTRIBUTES (OVERRIDE ALL AI DETECTION):\n${fileAttributes.join('\n')}\n` 
     : '';
   
+  const filenameRule = hasImage
+    ? 'CRITICAL: An image has been provided. You MUST base the title, description, and keywords ONLY on what is visible in the image. DO NOT copy or reuse any part of the filename (words, numbers, IDs, or codes).'
+    : 'If no image is provided, you may use the filename as a weak hint but still write a natural, descriptive title.';
+  
   const isVideo = a.assetType === 'video';
   const imageContext = isVideo && hasImage 
     ? 'IMPORTANT: The provided image is a frame extracted from the middle of a video. Analyze this frame carefully as it represents the video content. Describe what you see:'
@@ -204,13 +208,14 @@ This override takes precedence over everything else in this prompt.
       ? 'IMPORTANT: Analyze the provided image carefully. Describe what you see:'
       : '';
   
-  // For videos with extracted frames, don't use filename hints
-  const shouldUseFilenameHints = !(isVideo && hasImage);
+  // If we have an image (photo/vector/video frame), ignore filename hints entirely
+  const shouldUseFilenameHints = !hasImage;
   
   return `
 ${mandatoryOverride}${rules(a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
 Platform: ${a.platform} (${PLATFORM_TIPS[a.platform]}).
 Asset: ${a.assetType} (${ASSET_TIPS[a.assetType]}); ext: ${a.extension}.
+${filenameRule}
 ${fileAttributesText}${hasImage ? `${imageContext}
 - Subjects and objects
 - Colors and textures
@@ -225,7 +230,11 @@ ${fileAttributesText}${hasImage ? `${imageContext}
 Apply prefix="${a.prefix || ''}" and suffix="${a.suffix || ''}" to the title if provided.
 Avoid title words: [${a.negativeTitle.join(', ')}].
 Exclude keywords: [${a.negativeKeywords.join(', ')}].
-${shouldUseFilenameHints ? `Filename hints: ${hints.join(', ') || 'none'}${hasImage ? ' (use only as secondary clues)' : ''}.` : isVideo && hasImage ? 'CRITICAL: This is a video with an extracted frame. Generate metadata based ONLY on the visual content of the frame image. DO NOT use the filename as a clue - analyze what you actually see in the image.' : ''}
+${shouldUseFilenameHints
+  ? `Filename hints: ${hints.join(', ') || 'none'}.`
+  : hasImage
+  ? 'IGNORE the filename completely; do not copy, paraphrase, or use it as a clue.'
+  : ''}
 ${a.assetType === 'video'
   ? `Video hints (optional): style=[${a.videoHints?.style?.join(', ') || ''}], tech=[${a.videoHints?.tech?.join(', ') || ''}]`
   : ''

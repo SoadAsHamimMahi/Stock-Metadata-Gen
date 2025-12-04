@@ -9,7 +9,6 @@ import ErrorToastComponent, { type ErrorToast } from '@/components/ErrorToast';
 import Analytics from '@/components/Analytics';
 import CompletionModal, { type CompletionStats } from '@/components/CompletionModal';
 import { toCSV } from '@/lib/csv';
-import { createVectorFormatExcel } from '@/lib/excel';
 import { getJSON, setJSON, getDecryptedJSON } from '@/lib/util';
 import { trackEvent } from '@/lib/analytics';
 import { scoreTitleQuality } from '@/lib/util';
@@ -258,9 +257,10 @@ export default function Page() {
 
   const onExportZIP = async () => {
     try {
-      // Check if there are any vector assets
-      const hasVectorAssets = rows.some(r => r.assetType === 'vector' && !r.error);
-      if (!hasVectorAssets) {
+      // Filter vector assets once
+      const vectorRows = rows.filter(r => r.assetType === 'vector' && !r.error);
+
+      if (vectorRows.length === 0) {
         setError({
           id: Date.now().toString(),
           message: 'No vector assets found. ZIP export is only available for SVG/vector files.',
@@ -274,20 +274,34 @@ export default function Page() {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
 
-      // Create 3 Excel files for AI, EPS, and SVG formats
-      const aiExcel = createVectorFormatExcel(rows, 'ai', form.titleLen, form.descLen, form.keywordCount);
-      const epsExcel = createVectorFormatExcel(rows, 'eps', form.titleLen, form.descLen, form.keywordCount);
-      const svgExcel = createVectorFormatExcel(rows, 'svg', form.titleLen, form.descLen, form.keywordCount);
+      // Helper to create per-format CSV using the same structure as normal export
+      const makeCsvForFormat = (format: 'ai' | 'eps' | 'svg') => {
+        const rowsForFormat = vectorRows.map(r => {
+          const baseName = r.filename.replace(/\.[^.]+$/, '');
+          return {
+            ...r,
+            filename: `${baseName}.${format}`,
+            extension: format
+          };
+        });
 
-      // Convert blobs to array buffers for JSZip
-      const aiBuffer = await aiExcel.arrayBuffer();
-      const epsBuffer = await epsExcel.arrayBuffer();
-      const svgBuffer = await svgExcel.arrayBuffer();
+        return toCSV(
+          rowsForFormat,
+          form.titleLen,
+          form.descLen,
+          form.keywordCount,
+          form.platform
+        );
+      };
 
-      // Add Excel files to ZIP
-      zip.file('metadata-ai.xlsx', aiBuffer);
-      zip.file('metadata-eps.xlsx', epsBuffer);
-      zip.file('metadata-svg.xlsx', svgBuffer);
+      const aiCsv = makeCsvForFormat('ai');
+      const epsCsv = makeCsvForFormat('eps');
+      const svgCsv = makeCsvForFormat('svg');
+
+      // Add CSV files to ZIP
+      zip.file('metadata-ai.csv', aiCsv);
+      zip.file('metadata-eps.csv', epsCsv);
+      zip.file('metadata-svg.csv', svgCsv);
 
       // Generate ZIP file
       const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -335,11 +349,18 @@ export default function Page() {
       if (event.type === 'retry-event') {
         setRetryingFiles(prev => {
           const next = new Map(prev);
-          next.set(file.name, {
-            attempt: event.attempt,
-            maxAttempts: event.maxAttempts,
-            errorType: event.errorType
-          });
+
+          if (event.status === 'retrying') {
+            next.set(file.name, {
+              attempt: event.attempt,
+              maxAttempts: event.maxAttempts,
+              errorType: event.errorType
+            });
+          } else {
+            // On success or failure, clear retry state for this file
+            next.delete(file.name);
+          }
+
           return next;
         });
       }
@@ -745,11 +766,17 @@ export default function Page() {
       if (event.type === 'retry-event') {
         setRetryingFiles(prev => {
           const next = new Map(prev);
-          next.set(file.name, {
-            attempt: event.attempt,
-            maxAttempts: event.maxAttempts,
-            errorType: event.errorType
-          });
+
+          if (event.status === 'retrying') {
+            next.set(file.name, {
+              attempt: event.attempt,
+              maxAttempts: event.maxAttempts,
+              errorType: event.errorType
+            });
+          } else {
+            next.delete(file.name);
+          }
+
           return next;
         });
       }
@@ -931,11 +958,17 @@ export default function Page() {
       if (event.type === 'retry-event') {
         setRetryingFiles(prev => {
           const next = new Map(prev);
-          next.set(filename, {
-            attempt: event.attempt,
-            maxAttempts: event.maxAttempts,
-            errorType: event.errorType
-          });
+
+          if (event.status === 'retrying') {
+            next.set(filename, {
+              attempt: event.attempt,
+              maxAttempts: event.maxAttempts,
+              errorType: event.errorType
+            });
+          } else {
+            next.delete(filename);
+          }
+
           return next;
         });
       }
@@ -1246,7 +1279,7 @@ export default function Page() {
                   <span className="text-green-bright font-bold text-lg flex-shrink-0">4.</span>
                   <div>
                     <div className="text-sm font-semibold text-text-primary mb-1">Export Results</div>
-                    <div className="text-sm text-text-secondary">Use &quot;Export CSV&quot; for standard format, or &quot;Export ZIP (Excel)&quot; for vector files (SVG) to get 3 Excel files (AI, EPS, SVG)</div>
+                    <div className="text-sm text-text-secondary">Use &quot;Export CSV&quot; for standard format, or &quot;Export ZIP (CSV)&quot; for vector files (SVG) to get 3 CSV files (AI, EPS, SVG) in a ZIP</div>
                   </div>
                 </div>
               </div>
@@ -1283,7 +1316,7 @@ export default function Page() {
               <p className="flex items-start gap-2">
                 <span className="text-green-bright">📦</span>
                 <span>
-                  <strong className="text-green-bright font-semibold">SVG Export:</strong> For SVG uploads, use &ldquo;Export ZIP (Excel)&rdquo; to get 3 Excel files (AI, EPS, SVG) bundled in a ZIP file for Adobe Stock.
+                  <strong className="text-green-bright font-semibold">SVG Export:</strong> For SVG uploads, use &ldquo;Export ZIP (CSV)&rdquo; to get 3 CSV files (AI, EPS, SVG) bundled in a ZIP file for Adobe Stock.
                 </span>
               </p>
             </div>

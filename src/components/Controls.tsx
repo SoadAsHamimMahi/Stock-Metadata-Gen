@@ -95,39 +95,13 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
                   <button className={`tab ${value.model.provider==='gemini'?'tab-active':'tab-inactive'}`} onClick={()=>setNested('model','provider','gemini')}>Gemini</button>
                   <button className={`tab ${value.model.provider==='mistral'?'tab-active':'tab-inactive'}`} onClick={()=>setNested('model','provider','mistral')}>Mistral</button>
                 </div>
-                <label className="inline-flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={!!value.model.preview} onChange={(e)=>setNested('model','preview',e.target.checked)} />
-                  Use Gemini Preview Model
-                </label>
                 <label 
-                  className={`inline-flex items-center gap-2 text-sm ${value.parallelMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <input 
-                    type="checkbox" 
-                    checked={!!value.singleMode} 
-                    onChange={(e) => {
-                      set('singleMode', e.target.checked);
-                      if (e.target.checked) {
-                        set('parallelMode', false);
-                      }
-                    }} 
-                    disabled={!!value.parallelMode}
-                  />
-                  Single Generation Mode (sequential)
-                </label>
-                <label 
-                  className={`inline-flex items-center gap-2 text-sm ${value.singleMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  className="inline-flex items-center gap-2 text-sm cursor-pointer"
                 >
                   <input 
                     type="checkbox" 
                     checked={!!value.parallelMode} 
-                    onChange={(e) => {
-                      set('parallelMode', e.target.checked);
-                      if (e.target.checked) {
-                        set('singleMode', false);
-                      }
-                    }} 
-                    disabled={!!value.singleMode}
+                    onChange={(e) => set('parallelMode', e.target.checked)}
                   />
                   Parallel Generation Mode (faster, may hit API limits)
                 </label>

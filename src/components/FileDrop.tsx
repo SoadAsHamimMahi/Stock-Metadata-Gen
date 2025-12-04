@@ -414,10 +414,10 @@ export default function FileDrop({
                 className={`btn btn-secondary text-sm flex items-center gap-1 ${!hasRows || !hasVectorAssets ? 'btn-disabled' : ''}`}
                 onClick={onExportZIP}
                 disabled={!hasRows || !hasVectorAssets}
-                title={!hasVectorAssets ? 'ZIP export is only available for SVG/vector files' : 'Export 3 Excel files (AI, EPS, SVG) in ZIP format'}
+                title={!hasVectorAssets ? 'ZIP export is only available for SVG/vector files' : 'Export 3 CSV files (AI, EPS, SVG) in ZIP format'}
               >
                 <span>📦</span>
-                Export ZIP (Excel)
+                Export ZIP (CSV)
               </button>
             );
           })()}

@@ -54,10 +54,122 @@ export function getWeekStart(date: Date = new Date()): string {
   return monday.toISOString().split('T')[0];
 }
 
-// Helper to get month start date
+// Helper to get week end date (Sunday)
+export function getWeekEnd(date: Date = new Date()): string {
+  const weekStart = new Date(getWeekStart(date));
+  const sunday = new Date(weekStart);
+  sunday.setDate(weekStart.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return sunday.toISOString().split('T')[0];
+}
+
+// Helper to get month start date (returns YYYY-MM format for database, but also has a function that returns full date)
 export function getMonthStart(date: Date = new Date()): string {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Helper to get month start as full date string (YYYY-MM-DD)
+export function getMonthStartDate(date: Date = new Date()): string {
+  const d = new Date(date);
+  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+  firstDay.setHours(0, 0, 0, 0);
+  return firstDay.toISOString().split('T')[0];
+}
+
+// Helper to get month end date (last day of month)
+export function getMonthEnd(date: Date = new Date()): string {
+  const d = new Date(date);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  lastDay.setHours(23, 59, 59, 999);
+  return lastDay.toISOString().split('T')[0];
+}
+
+// Helper to get previous week start
+export function getPreviousWeekStart(currentDate: Date = new Date()): string {
+  const weekStart = new Date(getWeekStart(currentDate));
+  weekStart.setDate(weekStart.getDate() - 7);
+  return getWeekStart(weekStart);
+}
+
+// Helper to get next week start
+export function getNextWeekStart(currentDate: Date = new Date()): string {
+  const weekStart = new Date(getWeekStart(currentDate));
+  weekStart.setDate(weekStart.getDate() + 7);
+  return getWeekStart(weekStart);
+}
+
+// Helper to get previous month start
+export function getPreviousMonthStart(currentDate: Date = new Date()): string {
+  const d = new Date(currentDate);
+  d.setMonth(d.getMonth() - 1);
+  return getMonthStart(d);
+}
+
+// Helper to get next month start
+export function getNextMonthStart(currentDate: Date = new Date()): string {
+  const d = new Date(currentDate);
+  d.setMonth(d.getMonth() + 1);
+  return getMonthStart(d);
+}
+
+// Helper to format date range for display
+export function formatDateRange(startDate: string, endDate: string, period: 'weekly' | 'monthly'): string {
+  // Handle month format (YYYY-MM) by converting to full date
+  let startStr = startDate;
+  if (period === 'monthly' && startDate.length === 7) {
+    // If it's in YYYY-MM format, convert to YYYY-MM-01
+    startStr = `${startDate}-01`;
+  }
+  
+  // Create dates in local timezone to avoid UTC conversion issues
+  const startParts = startStr.split('-');
+  const endParts = endDate.split('-');
+  
+  const start = new Date(
+    parseInt(startParts[0]),
+    parseInt(startParts[1]) - 1,
+    parseInt(startParts[2] || '1')
+  );
+  
+  const end = new Date(
+    parseInt(endParts[0]),
+    parseInt(endParts[1]) - 1,
+    parseInt(endParts[2] || '1')
+  );
+  
+  if (period === 'weekly') {
+    // Weekly: "Mon, Nov 25 - Sun, Dec 1, 2025"
+    const startFormatted = start.toLocaleDateString('en-US', { 
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric' 
+    });
+    const endFormatted = end.toLocaleDateString('en-US', { 
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+    return `${startFormatted} - ${endFormatted}`;
+  } else {
+    // Monthly: "November 1 - 30, 2025"
+    const startFormatted = start.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const endFormatted = end.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+    // If same month, show: "November 1 - 30, 2025"
+    // If different months (shouldn't happen but handle it): "November 30 - December 1, 2025"
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+      return `${start.toLocaleDateString('en-US', { month: 'long' })} ${start.getDate()} - ${end.getDate()}, ${end.getFullYear()}`;
+    }
+    return `${startFormatted} - ${endFormatted}`;
+  }
 }
 
 // Initialize or update user document
@@ -148,9 +260,12 @@ export async function getUserStats(userId: string): Promise<UserDoc | null> {
 }
 
 // Get leaderboard data for a specific period
-export async function getLeaderboard(period: 'weekly' | 'monthly'): Promise<LeaderboardEntry[]> {
+export async function getLeaderboard(
+  period: 'weekly' | 'monthly',
+  targetDate?: Date
+): Promise<LeaderboardEntry[]> {
   try {
-    const now = new Date();
+    const now = targetDate || new Date();
     const periodStart = period === 'weekly' ? getWeekStart(now) : getMonthStart(now);
     const field = period === 'weekly' ? 'weekStart' : 'monthStart';
     
