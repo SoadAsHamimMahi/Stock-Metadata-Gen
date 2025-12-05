@@ -17,6 +17,7 @@ type CompletionModalProps = {
   onClose: () => void;
   stats: CompletionStats | null;
   onExportCSV?: () => void;
+  onExportZIP?: () => void;
 };
 
 function formatTime(milliseconds: number): string {
@@ -34,7 +35,8 @@ export default function CompletionModal({
   open, 
   onClose, 
   stats,
-  onExportCSV 
+  onExportCSV,
+  onExportZIP
 }: CompletionModalProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -160,7 +162,7 @@ export default function CompletionModal({
               <div className="col-span-2">
                 <span className="text-white/60">Average Quality Score:</span>
                 <span className="ml-2 font-semibold text-white">
-                  {stats.avgQualityScore.toFixed(1)} / 10
+                  {stats.avgQualityScore.toFixed(1)} / 100
                 </span>
               </div>
             )}
@@ -175,6 +177,18 @@ export default function CompletionModal({
           >
             Close
           </button>
+          {onExportZIP && stats.successCount > 0 && (
+            <button
+              onClick={() => {
+                onExportZIP();
+                onClose();
+              }}
+              className="px-6 py-2.5 bg-gradient-to-r from-green-accent to-teal-accent hover:from-green-bright hover:to-teal-bright text-white rounded-lg font-bold transition-all duration-300 flex items-center gap-2"
+            >
+              <span>📦</span>
+              Export ZIP (Multi-CSV)
+            </button>
+          )}
           {onExportCSV && stats.successCount > 0 && (
             <button
               onClick={() => {

@@ -74,3 +74,33 @@ export function toCSV(
 
   return [header, ...lines].join('\n');
 }
+
+/**
+ * Group rows by file extension, normalizing extensions and grouping video formats
+ * @param rows - Array of Row objects to group
+ * @returns Record mapping normalized extension to array of rows
+ */
+export function groupRowsByExtension(rows: Row[]): Record<string, Row[]> {
+  const groups: Record<string, Row[]> = {};
+
+  for (const row of rows) {
+    if (row.error) continue; // Skip rows with errors
+
+    let ext = row.extension.toLowerCase();
+
+    // Normalize extensions
+    if (ext === 'jpeg') ext = 'jpg';
+
+    // Group video formats together
+    if (['mp4', 'mov', 'm4v', 'webm'].includes(ext)) {
+      ext = 'video';
+    }
+
+    if (!groups[ext]) {
+      groups[ext] = [];
+    }
+    groups[ext].push(row);
+  }
+
+  return groups;
+}

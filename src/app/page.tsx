@@ -46,7 +46,7 @@ export default function Page() {
   const [completionStats, setCompletionStats] = useState<CompletionStats | null>(null);
 
   const [form, setForm] = useState({
-    platform: 'general' as 'general' | 'adobe' | 'shutterstock',
+    platform: 'adobe' as 'general' | 'adobe' | 'shutterstock',
     model: { provider: 'gemini' as 'gemini' | 'mistral', preview: false },
     titleLen: 70, // Adobe Stock requirement: 70 chars max
     descLen: 150 as 150,
@@ -257,13 +257,13 @@ export default function Page() {
 
   const onExportZIP = async () => {
     try {
-      // Filter vector assets once
-      const vectorRows = rows.filter(r => r.assetType === 'vector' && !r.error);
+      // Filter out rows with errors
+      const validRows = rows.filter(r => !r.error);
 
-      if (vectorRows.length === 0) {
+      if (validRows.length === 0) {
         setError({
           id: Date.now().toString(),
-          message: 'No vector assets found. ZIP export is only available for SVG/vector files.',
+          message: 'No completed metadata found. Generate metadata first before exporting.',
           severity: 'warning',
           duration: 5000
         });
@@ -274,41 +274,39 @@ export default function Page() {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
 
-      // Helper to create per-format CSV using the same structure as normal export
-      const makeCsvForFormat = (format: 'ai' | 'eps' | 'svg') => {
-        const rowsForFormat = vectorRows.map(r => {
+      // Define all target formats to generate CSVs for
+      const targetFormats: Array<{ ext: string; fileName: string }> = [
+        { ext: 'jpg', fileName: 'metadata-jpg.csv' },
+        { ext: 'png', fileName: 'metadata-png.csv' },
+        { ext: 'svg', fileName: 'metadata-svg.csv' },
+        { ext: 'eps', fileName: 'metadata-eps.csv' },
+        { ext: 'ai', fileName: 'metadata-ai.csv' },
+        { ext: 'webp', fileName: 'metadata-webp.csv' },
+        { ext: 'mp4', fileName: 'metadata-video.csv' }
+      ];
+
+      // For each target format, create a CSV with ALL rows (filename changed to that format)
+      for (const format of targetFormats) {
+        const rowsForFormat = validRows.map(r => {
+          // Get base filename without extension
           const baseName = r.filename.replace(/\.[^.]+$/, '');
           return {
             ...r,
-            filename: `${baseName}.${format}`,
-            extension: format
+            filename: `${baseName}.${format.ext}`,
+            extension: format.ext
           };
         });
 
-        return toCSV(
-          rowsForFormat,
-          form.titleLen,
-          form.descLen,
-          form.keywordCount,
-          form.platform
-        );
-      };
-
-      const aiCsv = makeCsvForFormat('ai');
-      const epsCsv = makeCsvForFormat('eps');
-      const svgCsv = makeCsvForFormat('svg');
-
-      // Add CSV files to ZIP
-      zip.file('metadata-ai.csv', aiCsv);
-      zip.file('metadata-eps.csv', epsCsv);
-      zip.file('metadata-svg.csv', svgCsv);
+        const csv = toCSV(rowsForFormat, form.titleLen, form.descLen, form.keywordCount, 'general');
+        zip.file(format.fileName, csv);
+      }
 
       // Generate ZIP file
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'stock-metadata-vectors.zip';
+      a.download = 'stock-metadata-multi-csv.zip';
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1235,10 +1233,11 @@ export default function Page() {
     <>
       <ErrorToastComponent error={error} onDismiss={() => setError(null)} />
       <CompletionModal 
-        open={completionModalOpen} 
+        open={completionModalOpen}
         onClose={() => setCompletionModalOpen(false)}
         stats={completionStats}
         onExportCSV={onExportCSV}
+        onExportZIP={onExportZIP}
       />
       <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-4 sm:gap-6 animate-fade-in">
         {/* Left Sidebar - Settings */}
@@ -1279,7 +1278,7 @@ export default function Page() {
                   <span className="text-green-bright font-bold text-lg flex-shrink-0">4.</span>
                   <div>
                     <div className="text-sm font-semibold text-text-primary mb-1">Export Results</div>
-                    <div className="text-sm text-text-secondary">Use &quot;Export CSV&quot; for standard format, or &quot;Export ZIP (CSV)&quot; for vector files (SVG) to get 3 CSV files (AI, EPS, SVG) in a ZIP</div>
+                    <div className="text-sm text-text-secondary">Use &quot;Export CSV&quot; for a single CSV file, or &quot;Export ZIP (Multi-CSV)&quot; to get CSVs for all formats (JPG, PNG, SVG, EPS, AI, WebP, video) - each CSV contains all your files with that format&apos;s extension</div>
                   </div>
                 </div>
               </div>
@@ -1316,7 +1315,7 @@ export default function Page() {
               <p className="flex items-start gap-2">
                 <span className="text-green-bright">📦</span>
                 <span>
-                  <strong className="text-green-bright font-semibold">SVG Export:</strong> For SVG uploads, use &ldquo;Export ZIP (CSV)&rdquo; to get 3 CSV files (AI, EPS, SVG) bundled in a ZIP file for Adobe Stock.
+                  <strong className="text-green-bright font-semibold">Multi-CSV Export:</strong> Use &ldquo;Export ZIP (Multi-CSV)&rdquo; to download a ZIP containing CSVs for all formats (JPG, PNG, SVG, EPS, AI, WebP, video). Each CSV contains all your files with that format&apos;s extension.
                 </span>
               </p>
             </div>

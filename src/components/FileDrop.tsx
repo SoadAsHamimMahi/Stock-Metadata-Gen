@@ -407,20 +407,17 @@ export default function FileDrop({
               Export CSV
             </button>
           )}
-          {onExportZIP && (() => {
-            const hasVectorAssets = rows.some(r => r.assetType === 'vector' && !r.error);
-            return (
-              <button 
-                className={`btn btn-secondary text-sm flex items-center gap-1 ${!hasRows || !hasVectorAssets ? 'btn-disabled' : ''}`}
-                onClick={onExportZIP}
-                disabled={!hasRows || !hasVectorAssets}
-                title={!hasVectorAssets ? 'ZIP export is only available for SVG/vector files' : 'Export 3 CSV files (AI, EPS, SVG) in ZIP format'}
-              >
-                <span>📦</span>
-                Export ZIP (CSV)
-              </button>
-            );
-          })()}
+          {onExportZIP && (
+            <button 
+              className={`btn btn-secondary text-sm flex items-center gap-1 ${!hasRows ? 'btn-disabled' : ''}`}
+              onClick={onExportZIP}
+              disabled={!hasRows}
+              title="Download a ZIP with CSVs for all formats (JPG, PNG, SVG, EPS, AI, WebP, video) - each CSV contains all your files with that format's extension"
+            >
+              <span>📦</span>
+              Export ZIP (Multi-CSV)
+            </button>
+          )}
           {onRowsUpdate && hasRows && rows.length > 0 && (
             <BulkEditor 
               rows={rows} 
