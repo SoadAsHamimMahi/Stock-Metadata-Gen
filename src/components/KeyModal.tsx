@@ -13,7 +13,15 @@ type StoredKey = {
   enabledForParallel?: boolean; // Selected for parallel generation (default: true for new keys)
 };
 
-export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+export default function KeyModal({
+  open,
+  onOpenChange,
+  onKeysChanged,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onKeysChanged?: (provider: 'gemini' | 'mistral', usableCount: number) => void;
+}) {
   const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'>('gemini');
   const [newKey, setNewKey] = useState('');
   const [geminiKeys, setGeminiKeys] = useState<StoredKey[]>([]);
@@ -21,6 +29,13 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
   const [activeKeyId, setActiveKeyId] = useState<string>('');
   const [testingNewKey, setTestingNewKey] = useState(false);
   const [newKeyTestResult, setNewKeyTestResult] = useState<{ success: boolean; message?: string } | null>(null);
+
+  const getUsableCount = (keys: StoredKey[]) =>
+    keys.filter(k => k.enabledForParallel !== false && k.key && k.key.trim().length > 0).length;
+
+  const notifyKeysChanged = (provider: 'gemini' | 'mistral', keys: StoredKey[]) => {
+    onKeysChanged?.(provider, getUsableCount(keys));
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -40,10 +55,17 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
           }));
         };
         
-        setGeminiKeys(normalizeKeys(v.geminiKeys));
-        setMistralKeys(normalizeKeys(v.mistralKeys));
-        setActiveProvider(v.active || 'gemini');
+        const normGemini = normalizeKeys(v.geminiKeys);
+        const normMistral = normalizeKeys(v.mistralKeys);
+        setGeminiKeys(normGemini);
+        setMistralKeys(normMistral);
+
+        const provider = v.active || 'gemini';
+        setActiveProvider(provider);
         setActiveKeyId(v.activeKeyId || '');
+
+        const initialKeys = provider === 'gemini' ? normGemini : normMistral;
+        notifyKeysChanged(provider, initialKeys);
       }
     })();
   }, [open]);
@@ -66,6 +88,7 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
         activeKeyId: keyObj.id,
         bearer: newKey.trim()
       });
+      notifyKeysChanged('gemini', updated);
     } else {
       const updated = [...mistralKeys, keyObj];
       setMistralKeys(updated);
@@ -76,6 +99,7 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
         activeKeyId: keyObj.id,
         bearer: newKey.trim()
       });
+      notifyKeysChanged('mistral', updated);
     }
     setNewKey('');
   };
@@ -91,6 +115,7 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
         activeKeyId: updated.length > 0 ? updated[0].id : '',
         bearer: updated.length > 0 ? updated[0].key : ''
       });
+      notifyKeysChanged('gemini', updated);
     } else {
       const updated = mistralKeys.filter(k => k.id !== id);
       setMistralKeys(updated);
@@ -101,6 +126,7 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
         activeKeyId: updated.length > 0 ? updated[0].id : '',
         bearer: updated.length > 0 ? updated[0].key : ''
       });
+      notifyKeysChanged('mistral', updated);
     }
   };
 
@@ -124,6 +150,7 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
         activeKeyId: id,
         bearer: key.key
       });
+      notifyKeysChanged(activeProvider, activeProvider === 'gemini' ? geminiKeys : mistralKeys);
     }
   };
 
@@ -204,6 +231,8 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
           setEncryptedJSON('smg_keys_enc', {
             ...enc,
             geminiKeys: updated,
+          }).then(() => {
+            notifyKeysChanged('gemini', updated);
           });
         });
         return updated;
@@ -220,6 +249,8 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
           setEncryptedJSON('smg_keys_enc', {
             ...enc,
             mistralKeys: updated,
+          }).then(() => {
+            notifyKeysChanged('mistral', updated);
           });
         });
         return updated;
@@ -241,6 +272,8 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
           setEncryptedJSON('smg_keys_enc', {
             ...enc,
             geminiKeys: updated,
+          }).then(() => {
+            notifyKeysChanged('gemini', updated);
           });
         });
         return updated;
@@ -257,6 +290,8 @@ export default function KeyModal({ open, onOpenChange }: { open: boolean; onOpen
           setEncryptedJSON('smg_keys_enc', {
             ...enc,
             mistralKeys: updated,
+          }).then(() => {
+            notifyKeysChanged('mistral', updated);
           });
         });
         return updated;

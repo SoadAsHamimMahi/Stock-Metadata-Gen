@@ -114,7 +114,7 @@ function ResultCard({
                 </span>
               ))}
             </div>
-            <CopyBtn label="Copy Keywords" text={row.keywords.join('; ')} />
+            <CopyBtn label="Copy Keywords" text={row.keywords.join(',    ')} />
           </div>
         </div>
       </div>

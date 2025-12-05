@@ -10,6 +10,7 @@ import LoginModal from '@/components/LoginModal';
 export default function APIControls({ value, onChange }: { value: FormState; onChange: (v: FormState | ((prev: FormState) => FormState)) => void }) {
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'>(value.model.provider);
+  const [canUseParallel, setCanUseParallel] = useState(false);
   const { executeGuarded, loginModalOpen, setLoginModalOpen, reason, handleLoginSuccess } = useGuardedAction();
 
   useEffect(() => {
@@ -25,6 +26,13 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
       }
     })();
   }, [keyModalOpen]);
+
+  // If parallel mode becomes unavailable, force it off in the form
+  useEffect(() => {
+    if (!canUseParallel && value.parallelMode) {
+      set('parallelMode', false);
+    }
+  }, [canUseParallel, value.parallelMode]);
 
   const set = <K extends keyof FormState>(key: K, v: FormState[K]) => {
     if (key === 'singleMode' && v === true) {
@@ -42,6 +50,8 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
   const handleProviderChange = (provider: 'gemini' | 'mistral') => {
     setActiveProvider(provider);
     setNested('model', 'provider', provider);
+    // Reset until KeyModal reports fresh counts
+    setCanUseParallel(false);
   };
 
   return (
@@ -90,23 +100,53 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
               type="checkbox" 
               checked={!!value.parallelMode} 
               onChange={(e) => set('parallelMode', e.target.checked)}
-              className="w-5 h-5 mt-0.5"
+              disabled={!canUseParallel}
+              className="w-5 h-5 mt-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
             />
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg">⚡</span>
                 <span className="text-base font-semibold text-text-primary">Parallel Generation Mode</span>
               </div>
-              <p className="text-sm text-text-secondary mt-1.5 flex items-start gap-1.5">
-                <span className="text-green-bright">💡</span>
-                <span>Faster mode (runs several files at once, may hit API limits). Only available when Single Generation Mode is disabled.</span>
-              </p>
+              <div className="text-sm text-text-secondary mt-1.5 flex flex-col gap-1">
+                <div className="flex items-start gap-1.5">
+                  <span className="text-green-bright">💡</span>
+                  <span>
+                    Faster mode (runs several files at once). Recommended when you have multiple API keys.
+                  </span>
+                </div>
+                {!canUseParallel && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      executeGuarded(
+                        () => setKeyModalOpen(true),
+                        'Please sign in to manage your API secrets.'
+                      )
+                    }
+                    className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-400/40 px-2 py-1 text-xs text-amber-100 hover:bg-amber-500/20 transition-colors"
+                  >
+                    <span>⚠️</span>
+                    <span>
+                      Add at least <strong>2 API keys</strong> for {activeProvider === 'gemini' ? 'Gemini' : 'Mistral'} in <strong>API Secrets</strong> to enable Parallel Mode.
+                    </span>
+                  </button>
+                )}
+              </div>
             </div>
           </label>
         </div>
       </div>
 
-      <KeyModal open={keyModalOpen} onOpenChange={setKeyModalOpen} />
+      <KeyModal
+        open={keyModalOpen}
+        onOpenChange={setKeyModalOpen}
+        onKeysChanged={(provider, usableCount) => {
+          // Enable Parallel Mode whenever ANY provider has 2+ usable keys.
+          // This keeps the UX simple and avoids mismatch between modal provider and form provider.
+          setCanUseParallel(usableCount >= 2);
+        }}
+      />
       <LoginModal 
         open={loginModalOpen} 
         onOpenChange={setLoginModalOpen}

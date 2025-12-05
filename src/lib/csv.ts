@@ -63,7 +63,7 @@ export function toCSV(
       r.platform,
       esc(r.title),
       esc(r.description),
-      esc(r.keywords.join('; ')),
+      esc(r.keywords.join(', ')),
       r.assetType,
       r.extension,
       titleLen,
