@@ -41,6 +41,7 @@ export default function Page() {
   const shouldStopRef = useRef(false); // Use ref instead of state for synchronous access
   const [generatingFiles, setGeneratingFiles] = useState<Set<string>>(new Set());
   const [retryingFiles, setRetryingFiles] = useState<Map<string, { attempt: number; maxAttempts: number; errorType?: string }>>(new Map());
+  const [fileToWorkerId, setFileToWorkerId] = useState<Map<string, number>>(new Map());
   const [error, setError] = useState<ErrorToast | null>(null);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [completionStats, setCompletionStats] = useState<CompletionStats | null>(null);
@@ -228,6 +229,7 @@ export default function Page() {
       setRows([]);
       setGeneratingFiles(new Set());
       setRetryingFiles(new Map());
+      setFileToWorkerId(new Map());
       setBusy(false);
       setCompletionModalOpen(false);
       setCompletionStats(null);
@@ -331,7 +333,8 @@ export default function Page() {
     allRows: Row[],
     completedCountRef: { current: number },
     unsubscribeCallbacks: Map<string, () => void>,
-    assignedKey?: string // Optional: specific API key for this worker
+    assignedKey?: string, // Optional: specific API key for this worker
+    workerId?: number // Optional: worker ID for parallel mode (0-indexed)
   ): Promise<void> => {
     if (shouldStopRef.current) {
       return;
@@ -341,6 +344,15 @@ export default function Page() {
     
     // Mark file as generating
     setGeneratingFiles(prev => new Set(prev).add(file.name));
+    
+    // Track which worker (API) is processing this file
+    if (workerId !== undefined) {
+      setFileToWorkerId(prev => {
+        const next = new Map(prev);
+        next.set(file.name, workerId);
+        return next;
+      });
+    }
     
     // Subscribe to retry events for this file
     const unsubscribe = retrySSEClient.subscribe(file.name, (event) => {
@@ -454,6 +466,12 @@ export default function Page() {
           next.delete(file.name);
           return next;
         });
+        // Clear worker ID mapping
+        setFileToWorkerId(prev => {
+          const next = new Map(prev);
+          next.delete(file.name);
+          return next;
+        });
         unsubscribe();
         unsubscribeCallbacks.delete(file.name);
         completedCountRef.current++;
@@ -476,6 +494,12 @@ export default function Page() {
         // Remove from generating set
         setGeneratingFiles(prev => {
           const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        // Clear worker ID mapping
+        setFileToWorkerId(prev => {
+          const next = new Map(prev);
           next.delete(file.name);
           return next;
         });
@@ -512,6 +536,12 @@ export default function Page() {
       // Remove from generating set
       setGeneratingFiles(prev => {
         const next = new Set(prev);
+        next.delete(file.name);
+        return next;
+      });
+      // Clear worker ID mapping
+      setFileToWorkerId(prev => {
+        const next = new Map(prev);
         next.delete(file.name);
         return next;
       });
@@ -562,6 +592,7 @@ export default function Page() {
             console.log('🛑 Generation stopped by user');
             setBusy(false);
             setGeneratingFiles(new Set());
+            setFileToWorkerId(new Map());
             // Clean up all subscriptions
             unsubscribeCallbacks.forEach(unsub => unsub());
             return;
@@ -616,7 +647,7 @@ export default function Page() {
               break; // Queue empty, this worker stops
             }
             
-            await processFile(myIndex, allRows, completedCountRef, unsubscribeCallbacks, assignedKey);
+            await processFile(myIndex, allRows, completedCountRef, unsubscribeCallbacks, assignedKey, workerId);
           }
         };
         
@@ -647,6 +678,7 @@ export default function Page() {
             console.log('🛑 Generation stopped by user');
             setBusy(false);
             setGeneratingFiles(new Set());
+            setFileToWorkerId(new Map());
             // Clean up all subscriptions
             unsubscribeCallbacks.forEach(unsub => unsub());
             return;
@@ -663,6 +695,7 @@ export default function Page() {
       setRows(allRows);
       setProcessingProgress(100);
       setGeneratingFiles(new Set()); // Clear all generating files
+      setFileToWorkerId(new Map()); // Clear worker ID mappings
       
       // Calculate completion stats
       const endTime = Date.now();
@@ -1226,6 +1259,7 @@ export default function Page() {
       setBusy(false);
       setProcessingProgress(100);
       setGeneratingFiles(new Set()); // Clear all generating files
+      setFileToWorkerId(new Map()); // Clear worker ID mappings
     }
   };
 
@@ -1341,6 +1375,7 @@ export default function Page() {
               onRowsUpdate={setRows}
               generatingFiles={generatingFiles}
               retryingFiles={retryingFiles}
+              fileToWorkerId={fileToWorkerId}
               successCount={successCount}
               failedCount={failedCount}
             />

@@ -44,6 +44,7 @@ export default function FileDrop({
   onRowsUpdate,
   generatingFiles = new Set<string>(),
   retryingFiles = new Map(),
+  fileToWorkerId = new Map<string, number>(),
   successCount = 0,
   failedCount = 0
 }: {
@@ -62,6 +63,7 @@ export default function FileDrop({
   onRowsUpdate?: (rows: Row[]) => void;
   generatingFiles?: Set<string>;
   retryingFiles?: Map<string, { attempt: number; maxAttempts: number; errorType?: string }>;
+  fileToWorkerId?: Map<string, number>;
   successCount?: number;
   failedCount?: number;
 }) {
@@ -476,6 +478,7 @@ export default function FileDrop({
           {files.map((f, index) => {
             const row = rows.find(r => r.filename === f.name);
             const isGenerating = generatingFiles.has(f.name);
+            const workerId = fileToWorkerId.get(f.name);
             // Always show FileCard - it handles loading/empty states internally
             // This prevents cards from disappearing when switching between skeleton and card
             return (
@@ -488,6 +491,7 @@ export default function FileDrop({
                   onRegenerate={onRegenerate}
                   isGenerating={isGenerating}
                   retryInfo={retryingFiles.get(f.name)}
+                  workerId={workerId}
                 />
               </div>
             );
@@ -512,7 +516,8 @@ function FileCard({
   onDelete,
   onRegenerate,
   isGenerating = false,
-  retryInfo
+  retryInfo,
+  workerId
 }: {
   file: UploadItem;
   row?: Row;
@@ -521,6 +526,7 @@ function FileCard({
   onRegenerate?: (filename: string) => void;
   isGenerating?: boolean;
   retryInfo?: { attempt: number; maxAttempts: number; errorType?: string };
+  workerId?: number;
 }) {
   const [title, setTitle] = useState(row?.title || '');
   const [revealedKeywords, setRevealedKeywords] = useState<string[]>([]);
@@ -703,7 +709,14 @@ function FileCard({
                 )}
                 {row && !isGenerating && !retryInfo && <span className="text-xs text-text-tertiary">{title.length} chars</span>}
                 {isGenerating && !retryInfo && (
-                  <span className="text-xs text-green-bright animate-pulse">{row ? 'Regenerating...' : 'Generating...'}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-green-bright animate-pulse">{row ? 'Regenerating...' : 'Generating...'}</span>
+                    {workerId !== undefined && (
+                      <span className="text-xs px-2 py-0.5 bg-green-accent/20 text-green-bright rounded border border-green-accent/30 font-semibold">
+                        API{workerId + 1}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
