@@ -17,6 +17,33 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
     setActiveProvider(value.model.provider);
   }, [value.model.provider]);
 
+  // On first load, determine if Parallel Mode can be used based on stored keys
+  useEffect(() => {
+    (async () => {
+      try {
+        const enc = await getDecryptedJSON<any>('smg_keys_enc', null as any);
+        if (!enc) {
+          setCanUseParallel(false);
+          return;
+        }
+
+        const countUsable = (keys: any[] = []) =>
+          keys.filter(
+            (k) => k && k.key && k.key.trim().length > 0 && k.enabledForParallel !== false
+          ).length;
+
+        const geminiCount = countUsable(enc.geminiKeys);
+        const mistralCount = countUsable(enc.mistralKeys);
+
+        // Enable Parallel Mode if ANY provider already has 2+ usable keys
+        setCanUseParallel(geminiCount >= 2 || mistralCount >= 2);
+      } catch (err) {
+        console.error('Failed to initialize Parallel Mode availability:', err);
+        setCanUseParallel(false);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     // Load active provider from stored keys
     (async () => {
