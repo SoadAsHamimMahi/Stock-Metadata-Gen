@@ -695,7 +695,7 @@ export default function KeyModal({
             {!modelSaved && (
               <div className="mt-2 text-xs text-amber-400 flex items-center gap-1">
                 <span>💡</span>
-                <span>Click "Save" to apply the model selection</span>
+                <span>Click &quot;Save&quot; to apply the model selection</span>
               </div>
             )}
             <div className="mt-2 space-y-1">
