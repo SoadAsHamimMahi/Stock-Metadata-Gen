@@ -2,8 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateWithGemini, generateWithMistral, type ModelArgs } from '@/lib/models';
-import { filenameHints, truncateByChars, isFilenameBased, scoreTitleQuality } from '@/lib/util';
+import { filenameHints, truncateByChars, isFilenameBased, scoreTitleQuality, filterFilenameBasedKeywords } from '@/lib/util';
 import { enrichKeywords, addScientificNames } from '@/lib/keyword-enrichment';
+import { GeminiModelEnum, MistralModelEnum } from '@/lib/types';
 
 // Infer by extension when assetType='auto'
 const inferAsset = (ext: string) =>
@@ -22,6 +23,8 @@ const Body = z.object({
   negativeTitle: z.array(z.string()).optional().default([]),
   negativeKeywords: z.array(z.string()).optional().default([]),
   model: z.object({ provider: z.enum(['gemini','mistral']), preview: z.boolean().optional() }),
+  geminiModel: GeminiModelEnum.optional(),
+  mistralModel: MistralModelEnum.optional(),
   files: z.array(z.object({ 
     name: z.string(), 
     type: z.string(), 
@@ -89,7 +92,10 @@ function validateAdobeTitle(title: string, expectedLen: number): { warnings: str
   const commaCount = (title.match(/,/g) || []).length;
   const semicolonCount = (title.match(/;/g) || []).length;
   if (commaCount > 3 || semicolonCount > 1) {
-    errors.push('Title appears to be a keyword list (too many commas/semicolons). Adobe requires descriptive phrases, not tag dumps.');
+    // Downgraded to a warning so it never blocks generation
+    warnings.push(
+      'Title appears to be a keyword list (too many commas/semicolons). Adobe requires descriptive phrases, not tag dumps. Use no more than 3 commas and at most 1 semicolon.'
+    );
   }
   
   // 3. Detect style references
@@ -194,19 +200,11 @@ function validateResponse(
   if (!title || title.trim().length === 0) {
     issues.push('Title is empty');
   } else {
-    const flexibleLimit = Math.max(Math.round(expectedTitleLen * 0.13), 17);
-    const flexibleMax = Math.min(expectedTitleLen + flexibleLimit, 200);
     const hardMax = 200;
     
-    // Check against hard 200 limit
+    // Check against hard 200 limit only
     if (title.length > hardMax) {
       issues.push(`Title too long: ${title.length} chars (max ${hardMax})`);
-    } else if (title.length > flexibleMax) {
-      // Exceeds flexible limit but within hard max
-      issues.push(`Title exceeds flexible limit: ${title.length} chars (base: ${expectedTitleLen}, flexible: ${flexibleMax})`);
-    } else if (title.length > expectedTitleLen) {
-      // Within flexible range - this is allowed, no issue
-      // Titles can exceed base limit by up to flexibleLimit chars (13% or min 17) for sentence completion
     }
     
     if (title.length < 5) {
@@ -391,14 +389,16 @@ export async function POST(req: NextRequest) {
         suffix: a.suffix,
         negativeTitle: a.negativeTitle,
         negativeKeywords: a.negativeKeywords,
-        preview: a.model.preview,
+        preview: a.model.preview, // Deprecated, kept for backward compatibility
         bearer: bearerToken,
         videoHints: a.videoHints,
         imageData,
         isolatedOnTransparentBackground: a.isolatedOnTransparentBackground || false,
         isolatedOnWhiteBackground: a.isolatedOnWhiteBackground || false,
         isVector: a.isVector || false,
-        isIllustration: a.isIllustration || false
+        isIllustration: a.isIllustration || false,
+        geminiModel: a.geminiModel,
+        mistralModel: a.mistralModel
       };
       
       // Debug: Log the actual values being used
@@ -714,6 +714,24 @@ export async function POST(req: NextRequest) {
       
       let keywords = normalizeKeywords(rawKeywords, a.keywordCount, seeds, a.negativeKeywords);
       
+      // Post-processing: Filter out filename-based keywords when image is provided
+      if (imageData && keywords.length > 0) {
+        const originalKeywords = [...keywords];
+        keywords = filterFilenameBasedKeywords(keywords, f.name);
+        const removedKeywords = originalKeywords.filter(k => !keywords.includes(k));
+        if (removedKeywords.length > 0) {
+          console.warn(`⚠️ POST-PROCESSING: Removed filename-based keywords for ${f.name}:`, removedKeywords);
+          // If we removed keywords, try to fill back up to the target count if possible
+          if (keywords.length < a.keywordCount) {
+            // Use title words that weren't already in keywords
+            const titleWordsForKeywords = titleWords
+              .filter(w => w.length > 2 && !keywords.some(k => k.toLowerCase() === w.toLowerCase()))
+              .slice(0, a.keywordCount - keywords.length);
+            keywords = [...keywords, ...titleWordsForKeywords].slice(0, a.keywordCount);
+          }
+        }
+      }
+      
       // For all platforms, ensure title words appear in keywords if not already there
       if (titleWords.length > 0) {
         const existingKeywords = new Set(keywords.map(k => k.toLowerCase()));
@@ -754,6 +772,23 @@ export async function POST(req: NextRequest) {
       // Keep original order but add enriched terms, then trim to exact count
       let finalKeywords = [...keywords, ...withScientific.filter(k => !keywords.includes(k))]
         .slice(0, a.keywordCount);
+      
+      // Final post-processing: Filter out filename-based keywords when image is provided (after enrichment)
+      if (imageData && finalKeywords.length > 0) {
+        const originalFinalKeywords = [...finalKeywords];
+        finalKeywords = filterFilenameBasedKeywords(finalKeywords, f.name);
+        const removedFinalKeywords = originalFinalKeywords.filter(k => !finalKeywords.includes(k));
+        if (removedFinalKeywords.length > 0) {
+          console.warn(`⚠️ POST-PROCESSING: Removed filename-based keywords from final list for ${f.name}:`, removedFinalKeywords);
+          // Fill back up to target count if needed
+          if (finalKeywords.length < a.keywordCount) {
+            const titleWordsForKeywords = titleWords
+              .filter(w => w.length > 2 && !finalKeywords.some(k => k.toLowerCase() === w.toLowerCase()))
+              .slice(0, a.keywordCount - finalKeywords.length);
+            finalKeywords = [...finalKeywords, ...titleWordsForKeywords].slice(0, a.keywordCount);
+          }
+        }
+      }
       
       // Ensure exact keyword count - pad or trim if needed
       if (finalKeywords.length < a.keywordCount) {

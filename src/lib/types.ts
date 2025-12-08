@@ -3,6 +3,21 @@ import { z } from 'zod';
 export const PlatformEnum = z.enum(['general', 'adobe', 'shutterstock']);
 export const AssetTypeEnum = z.enum(['auto','photo','illustration','vector','3d','icon','video']);
 
+// Model selection enums
+export const GeminiModelEnum = z.enum([
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite'
+]);
+
+export const MistralModelEnum = z.enum([
+  'mistral-small-latest',
+  'mistral-medium-latest',
+  'mistral-large-latest'
+]);
+
+export type GeminiModel = z.infer<typeof GeminiModelEnum>;
+export type MistralModel = z.infer<typeof MistralModelEnum>;
+
 export const FileSchema = z.object({
   name: z.string(),
   url: z.string().url(),
@@ -28,7 +43,9 @@ export const FormSchema = z.object({
   isolatedOnTransparentBackground: z.boolean().optional().default(false),
   isolatedOnWhiteBackground: z.boolean().optional().default(false),
   isVector: z.boolean().optional().default(false),
-  isIllustration: z.boolean().optional().default(false)
+  isIllustration: z.boolean().optional().default(false),
+  geminiModel: GeminiModelEnum.optional(),
+  mistralModel: MistralModelEnum.optional()
 });
 
 export type FormState = z.infer<typeof FormSchema>;

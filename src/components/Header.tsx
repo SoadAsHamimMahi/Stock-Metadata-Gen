@@ -14,9 +14,11 @@ import LeaderboardModal from '@/components/LeaderboardModal';
 type HeaderProps = {
   onExportCSV?: () => void;
   hasRows?: boolean;
+  geminiModel?: string;
+  onModelChanged?: (provider: 'gemini' | 'mistral', model: any) => void;
 };
 
-export default function Header({ onExportCSV, hasRows = false }: HeaderProps) {
+export default function Header({ onExportCSV, hasRows = false, geminiModel, onModelChanged }: HeaderProps) {
   const [open, setOpen] = useState(false);
   const [bearer, setBearer] = useState('');
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -264,7 +266,11 @@ export default function Header({ onExportCSV, hasRows = false }: HeaderProps) {
           )}
         </div>
       </div>
-      <KeyModal open={open} onOpenChange={setOpen} />
+      <KeyModal 
+        open={open} 
+        onOpenChange={setOpen}
+        onModelChanged={onModelChanged}
+      />
       <LoginModal 
         open={loginModalOpen} 
         onOpenChange={setLoginModalOpen}

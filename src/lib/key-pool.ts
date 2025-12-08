@@ -2,12 +2,14 @@
 // Ensures each worker gets a unique API key to avoid quota limits
 
 import { getDecryptedJSON } from './util';
+import type { GeminiModel, MistralModel } from './types';
 
 type StoredKey = { id: string; key: string; visible: boolean; enabledForParallel?: boolean };
 
 interface KeyPool {
   keys: string[];
   currentIndex: number;
+  model?: GeminiModel | MistralModel; // Track the model for this pool
 }
 
 class KeyPoolManager {
@@ -16,12 +18,15 @@ class KeyPoolManager {
 
   /**
    * Initialize the key pool for a provider
+   * Validates that all selected keys use the same model (model is provider-level, so this is always true)
    */
-  async initialize(provider: 'gemini' | 'mistral'): Promise<void> {
+  async initialize(provider: 'gemini' | 'mistral'): Promise<{ success: boolean; error?: string; model?: GeminiModel | MistralModel }> {
     try {
       const enc = await getDecryptedJSON<{
         geminiKeys?: StoredKey[];
         mistralKeys?: StoredKey[];
+        geminiModel?: GeminiModel;
+        mistralModel?: MistralModel;
       }>('smg_keys_enc', null as any);
 
       const keys = provider === 'gemini' 
@@ -40,22 +45,38 @@ class KeyPoolManager {
       if (validKeys.length === 0) {
         console.warn(`⚠ No valid ${provider} keys found in storage`);
         this.pools.set(provider, { keys: [], currentIndex: 0 });
-        return;
+        return { success: false, error: `No keys selected for parallel generation` };
       }
+
+      // Get the model for this provider (model selection is provider-level)
+      const model = provider === 'gemini' 
+        ? (enc?.geminiModel || 'gemini-2.5-flash')
+        : (enc?.mistralModel || 'mistral-small-latest');
 
       // Shuffle keys to distribute load evenly (not always same order)
       const shuffled = this.shuffleArray([...validKeys]);
       
       this.pools.set(provider, {
         keys: shuffled,
-        currentIndex: 0
+        currentIndex: 0,
+        model: model as GeminiModel | MistralModel
       });
 
-      console.log(`✅ Initialized ${provider} key pool with ${shuffled.length} key(s)`);
+      console.log(`✅ Initialized ${provider} key pool with ${shuffled.length} key(s), model: ${model}`);
+      return { success: true, model: model as GeminiModel | MistralModel };
     } catch (error) {
       console.error(`❌ Error initializing ${provider} key pool:`, error);
       this.pools.set(provider, { keys: [], currentIndex: 0 });
+      return { success: false, error: `Failed to initialize key pool: ${error}` };
     }
+  }
+
+  /**
+   * Get the model for a provider's key pool
+   */
+  getModel(provider: 'gemini' | 'mistral'): GeminiModel | MistralModel | undefined {
+    const pool = this.pools.get(provider);
+    return pool?.model;
   }
 
   /**

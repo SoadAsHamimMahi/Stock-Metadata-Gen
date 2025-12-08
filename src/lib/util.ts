@@ -118,6 +118,39 @@ export function isFilenameBased(title: string, filename: string): boolean {
   return false;
 }
 
+// Check if a keyword appears to be from the filename
+export function isKeywordFromFilename(keyword: string, filename: string): boolean {
+  if (!keyword || !filename) return false;
+  const keywordLower = keyword.toLowerCase().trim();
+  const filenameLower = filename.toLowerCase().replace(/\.[^.]+$/, '');
+  
+  // Extract all parts from filename (words, numbers, hashes)
+  const filenameParts = filenameLower.split(/[\s._-]+/g);
+  
+  // Check for exact matches (case-insensitive)
+  if (filenameParts.includes(keywordLower)) return true;
+  
+  // Check for long alphanumeric strings (hashes/IDs) - if keyword contains them
+  const longAlphanumeric = filenameLower.match(/[0-9a-f]{8,}/gi) || [];
+  if (longAlphanumeric.some(hash => keywordLower.includes(hash))) return true;
+  
+  // Check for long numbers (10+ digits)
+  const longNumbers = filenameLower.match(/\d{10,}/g) || [];
+  if (longNumbers.some(num => keywordLower.includes(num))) return true;
+  
+  // Check if keyword is a significant part of filename (4+ chars)
+  const significantParts = filenameParts.filter(p => p.length >= 4);
+  if (significantParts.some(part => keywordLower === part || keywordLower.includes(part))) return true;
+  
+  return false;
+}
+
+// Filter out filename-based keywords from an array
+export function filterFilenameBasedKeywords(keywords: string[], filename: string): string[] {
+  if (!keywords || !filename) return keywords || [];
+  return keywords.filter(k => !isKeywordFromFilename(k, filename));
+}
+
 // localStorage helpers
 export function getJSON<T>(key: string, defaultValue: T): T {
   if (typeof window === 'undefined') return defaultValue;

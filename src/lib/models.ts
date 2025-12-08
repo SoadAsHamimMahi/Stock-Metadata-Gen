@@ -1,5 +1,7 @@
 // src/lib/models.ts
-import { filenameHints, truncateByChars, dedupe } from './util';
+import { filenameHints, truncateByChars, dedupe, filterFilenameBasedKeywords } from './util';
+
+import type { GeminiModel, MistralModel } from './types';
 
 export type ModelArgs = {
   platform: 'general' | 'adobe' | 'shutterstock';
@@ -13,7 +15,7 @@ export type ModelArgs = {
   suffix?: string;
   negativeTitle: string[];
   negativeKeywords: string[];
-  preview?: boolean;
+  preview?: boolean;          // Deprecated: use geminiModel instead
   bearer?: string;           // optional key override from Authorization header
   videoHints?: { style?: string[]; tech?: string[] };
   imageData?: string;        // base64-encoded image data URL (for multimodal)
@@ -22,6 +24,8 @@ export type ModelArgs = {
   isolatedOnWhiteBackground?: boolean;
   isVector?: boolean;
   isIllustration?: boolean;
+  geminiModel?: GeminiModel;  // Selected Gemini model
+  mistralModel?: MistralModel; // Selected Mistral model
 };
 
 export type ModelOut = { 
@@ -62,6 +66,9 @@ const ASSET_TIPS = {
 } as const;
 
 function rules(keywordCount: number, titleLen: number, hasImage: boolean = false, platform?: 'general' | 'adobe' | 'shutterstock', isVideo?: boolean) {
+  // Clamp keyword count to a safe range (15-35) to avoid weak filler keywords
+  const safeKeywordCount = Math.max(15, Math.min(keywordCount, 35));
+  
   const imageInstructions = hasImage ? `
 CRITICAL: An image is provided. You MUST:
 1. Analyze the image carefully and describe what you actually see
@@ -79,15 +86,16 @@ ${isVideo ? '5. DO NOT use filename hints - analyze ONLY the frame image you see
 ` : '';
   
   const adobeTitleGuidance = platform === 'adobe' ? `
-For Adobe Stock: Titles must be COMPLETE and within ${titleLen} characters (max 200).
-CRITICAL: Generate a complete, meaningful title that fits within ${titleLen} characters. Do NOT exceed ${titleLen} chars.
-Use short, factual phrases - NOT formal sentences, NOT keyword lists.
-Include specific details: animal species names, location names (city/state/country), equipment names, specific actions.
+For Adobe Stock: Titles should be COMPLETE and natural. Aim to stay within ${titleLen} characters (max 200).
+Write a natural, descriptive title (a short phrase or sentence), not a keyword list.
+IMPORTANT: Use no more than 3 commas (",") and at most 1 semicolon (";") in the title.
+If you need to list many elements, group them with words like "and", "with", or simplify the phrase into a single descriptive clause.
+Include specific details: animal species names, location names (city/state/country), equipment names (ONLY if the equipment is clearly visible and is a main subject, e.g., "drone", "smartphone", "camera lens" - do NOT invent camera models or metadata from EXIF), specific actions.
 CRITICAL: Always mention the background accurately:
-- If transparent: use "transparent background" or "isolated" (DO NOT mention colors)
+- If transparent: prefer "isolated" in the title, use "transparent background" primarily in keywords (unless including it in the title is clearly helpful for buyers)
 - If white: use "white background" or "isolated on white"
 - If colored (not transparent): mention the specific color
-Examples (all within ${titleLen} chars and COMPLETE):
+Examples (complete and natural):
 - "Abstract futuristic microchip circuit board design isolated on white background"
 - "Young woman playing catch with Jack Russel Terrier at beach"
 - "Red apple on white background" (if background is white)
@@ -97,7 +105,8 @@ Use caring, engaged language when describing people.` : '';
   
   const adobeKeywordGuidance = platform === 'adobe' ? `
 CRITICAL for Adobe Stock: Keyword order is the MOST IMPORTANT factor for search visibility.
-1. Include ALL words from the title in your keywords (extract each word separately).
+FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or alphanumeric strings from the filename (e.g., if filename contains "Whisk_2cf81f816ae2", do NOT use "whisk", "2cf81f816ae2", or any part of the filename as keywords).
+1. Include all important CONTENT words from the title in your keywords. Ignore stop words like "and", "with", "on", "at", "of", "the". Key nouns and meaningful adjectives from the title should appear in the top 10 keywords.
 2. Separate descriptive elements: "white fluffy pup" → ["white", "fluffy", "pup"] (separate keywords, not combined).
 3. Include multiple specificity levels: general ("animal", "mammal") AND specific ("Arctic Fox", "Vulpes lagopus").
 4. For locations: include country with city/state (e.g., "Portland, Oregon, USA" → ["portland", "oregon", "usa"]).
@@ -117,8 +126,8 @@ Order keywords by importance: most important first, title words included.` : '';
   const titleLengthLimit = titleLen;
   
   const generalTitleGuidance = platform !== 'adobe' ? `
-CRITICAL: Generate a COMPLETE, meaningful title that fits within ${titleLengthLimit} characters. 
-Do NOT generate titles longer than ${titleLengthLimit} chars. The title must be complete and not cut off mid-sentence.
+Titles should be concise and natural. Aim to stay within ${titleLengthLimit} characters when possible, but shorter is fine if the subject is simple.
+The title must be complete and not cut off mid-sentence.
 ` : '';
   
   // Few-shot examples based on platform
@@ -144,16 +153,26 @@ Examples of GOOD titles:
   return `
 Return PURE JSON only: {"title": string, "description": string, "keywords": string[]}.
 ${imageInstructions}
-Title: MUST be COMPLETE and within ${titleLengthLimit} characters (NOT ${titleLengthLimit + 1} or more). 
-CRITICAL: Generate a complete, meaningful title that fits within ${titleLengthLimit} characters. Do NOT generate titles longer than ${titleLengthLimit} chars.
+Title: MUST be COMPLETE. Aim to stay within ${titleLengthLimit} characters (max 200).
+Titles should be concise and natural. Aim for around 50–90 characters when possible, but shorter is fine if the subject is simple.
+CRITICAL:
+- NEVER copy or paraphrase the filename, or include file types or generic words such as "copy", "final", "jpeg", "jpg", "png", "webp".
+- NEVER include ANY words, numbers, IDs, hashes, or codes from the filename in the title (e.g., if filename contains "Whisk_2cf81f816ae2", do NOT use "whisk" or "2cf81f816ae2" in the title).
+- NEVER include brand or product names (apple, google, microsoft, tesla, coca-cola, nike, etc.).
+- NEVER include AI/model names (gemini, mistral, gpt, midjourney, stable diffusion, etc.).
+- NEVER include person names (real people, artists, fictional characters).
+- If your draft title violates any of these rules, FIX it before you return the JSON.
 The title must be a complete phrase, not truncated or cut off mid-sentence.
 ${generalTitleGuidance}
-Use factual phrases (NOT formal sentences, NOT keyword lists), subject-first; DO NOT use filler words:
+Write a natural, descriptive title (a short phrase or sentence), not a keyword list. Subject-first; DO NOT use filler words:
 [${BANNED_TITLE.join(', ')}].
 ${adobeTitleGuidance}
 ${fewShotExamples}
 Description: ≤150 chars, 1 sentence, subject + style/setting/use-case; no brand/celebrity/release claims.
-Keywords: EXACTLY ${keywordCount}, ordered by importance (MOST CRITICAL for Adobe Stock search visibility).
+NOTE: Titles and keywords are PRIMARY for search visibility. Description is supporting context.
+Keywords: Use up to ${safeKeywordCount} highly relevant keywords. Ideal range: 20–35. Never add weak or generic filler just to reach the maximum.
+CRITICAL: NEVER include ANY words, numbers, IDs, hashes, codes, or alphanumeric strings from the filename in keywords. Base keywords ONLY on what is visible in the image or described in the title.
+Order keywords by importance (MOST CRITICAL for Adobe Stock search visibility).
 ${adobeKeywordGuidance}
 All keywords: lowercase, unique, no quotes, no duplicates.
 NEVER include banned keywords: [${BANNED_KEYWORDS.join(', ')}].
@@ -165,16 +184,32 @@ export function buildUserPrompt(a: ModelArgs) {
   const hasImage = !!(a.imageData || a.imageUrl);
   const isPNG = a.extension?.toLowerCase() === 'png';
   
-  // MANDATORY USER OVERRIDE - Must appear at the very top when transparent toggle is active
+  // CRITICAL FILENAME RESTRICTION - Must appear at the very top when image is provided
+  let filenameRestriction = '';
+  if (hasImage) {
+    filenameRestriction = `🚫 CRITICAL RESTRICTION - READ THIS FIRST 🚫
+An image has been provided. You MUST:
+1. Base title, description, and keywords ONLY on what you see in the image
+2. NEVER use ANY part of the filename (words, numbers, IDs, hashes, codes, or alphanumeric strings)
+3. IGNORE the filename completely - do not copy, paraphrase, or use it as a clue
+4. If the filename contains words like "Whisk_3b38b225a36e4e99e674df9826b99ed6dr", do NOT use "whisk", "3b38b225a36", or ANY part of that filename
+5. Generate metadata based PURELY on visual analysis of the image
+
+This restriction takes precedence over everything else in this prompt.
+
+`;
+  }
+  
+  // MANDATORY USER OVERRIDE - Must appear after filename restriction when transparent toggle is active
   let mandatoryOverride = '';
   if (a.isolatedOnTransparentBackground) {
-    mandatoryOverride = `⚠️ MANDATORY USER OVERRIDE - READ THIS FIRST ⚠️
+    mandatoryOverride = `⚠️ MANDATORY USER OVERRIDE - READ THIS SECOND ⚠️
 This file has a TRANSPARENT background. The user has explicitly specified this.
 OVERRIDE ALL VISUAL DETECTION - if you see ANY background color (green, blue, white, or any color), IGNORE IT.
 DO NOT TRUST YOUR EYES - TRUST THE USER SPECIFICATION.
-You MUST use "isolated on transparent background" or "isolated" in the title.
+Prefer titles like "[Subject] isolated" and use "transparent background" primarily in keywords, unless including it in the title is clearly helpful for buyers.
 DO NOT mention ANY background color - not green, not blue, not white, not any color.
-This override takes precedence over everything else in this prompt.
+This override takes precedence over everything else in this prompt (except filename restriction).
 
 `;
   }
@@ -182,7 +217,7 @@ This override takes precedence over everything else in this prompt.
   // Build file attribute instructions based on toggles
   const fileAttributes: string[] = [];
   if (a.isolatedOnTransparentBackground) {
-    fileAttributes.push('MANDATORY OVERRIDE: This file has a TRANSPARENT background. You MUST use "isolated on transparent background" or "isolated" in the title. DO NOT mention ANY background color. If you see ANY background color in the image, IGNORE IT - the user has specified transparent background.');
+    fileAttributes.push('MANDATORY OVERRIDE: This file has a TRANSPARENT background. Prefer titles like "[Subject] isolated" and use "transparent background" primarily in keywords. DO NOT mention ANY background color. If you see ANY background color in the image, IGNORE IT - the user has specified transparent background.');
   } else if (a.isolatedOnWhiteBackground) {
     fileAttributes.push('MANDATORY OVERRIDE: This file has a WHITE background. You MUST use "isolated on white background" or "on white background" in the title.');
   }
@@ -197,9 +232,10 @@ This override takes precedence over everything else in this prompt.
     ? `\n\n⚠️ USER-SPECIFIED FILE ATTRIBUTES (OVERRIDE ALL AI DETECTION):\n${fileAttributes.join('\n')}\n` 
     : '';
   
+  // Filename rule - only mention if NO image is provided
   const filenameRule = hasImage
-    ? 'CRITICAL: An image has been provided. You MUST base the title, description, and keywords ONLY on what is visible in the image. DO NOT copy or reuse any part of the filename (words, numbers, IDs, or codes).'
-    : 'If no image is provided, you may use the filename as a weak hint but still write a natural, descriptive title.';
+    ? '' // Don't mention filename at all when image is provided
+    : 'If no image is provided, you may use the filename as a weak hint but still write a natural, descriptive title. DO NOT include filename words, numbers, IDs, or codes directly in the title or keywords.';
   
   const isVideo = a.assetType === 'video';
   const imageContext = isVideo && hasImage 
@@ -212,28 +248,25 @@ This override takes precedence over everything else in this prompt.
   const shouldUseFilenameHints = !hasImage;
   
   return `
-${mandatoryOverride}${rules(a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
+${filenameRestriction}${mandatoryOverride}${rules(a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
 Platform: ${a.platform} (${PLATFORM_TIPS[a.platform]}).
 Asset: ${a.assetType} (${ASSET_TIPS[a.assetType]}); ext: ${a.extension}.
-${filenameRule}
-${fileAttributesText}${hasImage ? `${imageContext}
+${filenameRule ? `${filenameRule}\n` : ''}${fileAttributesText}${hasImage ? `${imageContext}
 - Subjects and objects
 - Colors and textures
 - Setting and background (CRITICAL: 
-  * ${isPNG ? 'This is a PNG file which may have transparency. ' : ''}${a.isolatedOnTransparentBackground ? '⚠️ MANDATORY USER OVERRIDE: This has a TRANSPARENT background - use "isolated on transparent background" or "isolated" ONLY. If you see ANY background color (green, blue, white, or any color), IGNORE IT - the user has specified transparent background. DO NOT mention ANY background color. ' : ''}${a.isolatedOnWhiteBackground ? '⚠️ MANDATORY USER OVERRIDE: This has a WHITE background - use "isolated on white background" or "on white background". ' : ''}${!a.isolatedOnTransparentBackground && !a.isolatedOnWhiteBackground ? `If background is TRANSPARENT: say "transparent background" or "isolated" - DO NOT mention ANY color (not green, not white, not any color)
+  * ${isPNG ? 'This is a PNG file which may have transparency. ' : ''}${a.isolatedOnTransparentBackground ? '⚠️ MANDATORY USER OVERRIDE: This has a TRANSPARENT background - prefer "isolated" in the title, use "transparent background" primarily in keywords. If you see ANY background color (green, blue, white, or any color), IGNORE IT - the user has specified transparent background. DO NOT mention ANY background color. ' : ''}${a.isolatedOnWhiteBackground ? '⚠️ MANDATORY USER OVERRIDE: This has a WHITE background - use "isolated on white background" or "on white background". ' : ''}${!a.isolatedOnTransparentBackground && !a.isolatedOnWhiteBackground ? `If background is TRANSPARENT: prefer "isolated" in the title, use "transparent background" in keywords - DO NOT mention ANY color (not green, not white, not any color)
   * If background is WHITE: say "white background" or "isolated on white"
   * If background has a COLOR (not transparent): mention that color
   * FORBIDDEN: Never mention "green background" unless the background is actually a solid green color
   * NEVER guess or assume background colors - only describe what you actually see` : ''})
 - Mood and style
-- ${a.isolatedOnTransparentBackground ? '⚠️ REMINDER: Background is TRANSPARENT (user-specified) - use "isolated on transparent background" or "isolated" - NEVER mention a background color. If you see any color, IGNORE IT.' : a.isolatedOnWhiteBackground ? '⚠️ REMINDER: Background is WHITE (user-specified) - use "isolated on white background" or "on white background"' : 'If background is transparent, you MUST use "transparent background" or "isolated" - NEVER mention a background color'}` : ''}
+- ${a.isolatedOnTransparentBackground ? '⚠️ REMINDER: Background is TRANSPARENT (user-specified) - prefer "isolated" in the title, use "transparent background" in keywords - NEVER mention a background color. If you see any color, IGNORE IT.' : a.isolatedOnWhiteBackground ? '⚠️ REMINDER: Background is WHITE (user-specified) - use "isolated on white background" or "on white background"' : 'If background is transparent, prefer "isolated" in the title, use "transparent background" in keywords - NEVER mention a background color'}` : ''}
 Apply prefix="${a.prefix || ''}" and suffix="${a.suffix || ''}" to the title if provided.
 Avoid title words: [${a.negativeTitle.join(', ')}].
 Exclude keywords: [${a.negativeKeywords.join(', ')}].
 ${shouldUseFilenameHints
   ? `Filename hints: ${hints.join(', ') || 'none'}.`
-  : hasImage
-  ? 'IGNORE the filename completely; do not copy, paraphrase, or use it as a clue.'
   : ''}
 ${a.assetType === 'video'
   ? `Video hints (optional): style=[${a.videoHints?.style?.join(', ') || ''}], tech=[${a.videoHints?.tech?.join(', ') || ''}]`
@@ -444,16 +477,27 @@ export async function generateWithGemini(a: ModelArgs): Promise<ModelOut> {
     // URL encode the key to handle any special characters safely
     const encodedKey = encodeURIComponent(key);
     
-    // Select model based on preview flag
-    // preview: false → gemini-2.5-flash (fast, efficient, default)
-    // preview: true → gemini-1.5-pro-latest (better quality, slower, preview model)
-    const modelName = a.preview 
-      ? 'gemini-1.5-pro-latest' 
-      : 'gemini-2.5-flash';
+    // Select model based on geminiModel parameter or fallback to preview flag (for backward compatibility)
+    // Map UI model names to API model names
+    let modelName: string;
+    if (a.geminiModel) {
+      // Map from UI model names to API model names
+      const modelMap: Record<GeminiModel, string> = {
+        'gemini-2.5-flash': 'gemini-2.5-flash',
+        'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite'
+      };
+      modelName = modelMap[a.geminiModel] || 'gemini-2.5-flash';
+    } else if (a.preview) {
+      // Backward compatibility: use preview flag if geminiModel not provided
+      modelName = 'gemini-1.5-pro-latest';
+    } else {
+      // Default fallback
+      modelName = 'gemini-2.5-flash';
+    }
     
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodedKey}`;
     
-    console.log(`📡 Making request to Gemini API using model: ${modelName} (preview: ${a.preview ? 'enabled' : 'disabled'})`);
+    console.log(`📡 Making request to Gemini API using model: ${modelName} (selected: ${a.geminiModel || 'default'})`);
     
     const res = await fetch(
       apiUrl,

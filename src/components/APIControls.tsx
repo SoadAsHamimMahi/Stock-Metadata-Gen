@@ -7,6 +7,9 @@ import type { FormState } from '@/lib/types';
 import { useGuardedAction } from '@/hooks/useGuardedAction';
 import LoginModal from '@/components/LoginModal';
 
+// Feature flag: Mistral is temporarily disabled (paid service)
+const MISTRAL_ENABLED = false;
+
 export default function APIControls({ value, onChange }: { value: FormState; onChange: (v: FormState | ((prev: FormState) => FormState)) => void }) {
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'>(value.model.provider);
@@ -33,7 +36,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           ).length;
 
         const geminiCount = countUsable(enc.geminiKeys);
-        const mistralCount = countUsable(enc.mistralKeys);
+        const mistralCount = MISTRAL_ENABLED ? countUsable(enc.mistralKeys) : 0;
 
         // Enable Parallel Mode if ANY provider already has 2+ usable keys
         setCanUseParallel(geminiCount >= 2 || mistralCount >= 2);
@@ -75,11 +78,53 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
   };
 
   const handleProviderChange = (provider: 'gemini' | 'mistral') => {
+    // Block Mistral if disabled
+    if (provider === 'mistral' && !MISTRAL_ENABLED) {
+      return;
+    }
     setActiveProvider(provider);
     setNested('model', 'provider', provider);
     // Reset until KeyModal reports fresh counts
     setCanUseParallel(false);
   };
+  
+  // Force provider to Gemini if Mistral is disabled and currently selected
+  useEffect(() => {
+    if (!MISTRAL_ENABLED && value.model.provider === 'mistral') {
+      setNested('model', 'provider', 'gemini');
+      setActiveProvider('gemini');
+    }
+  }, [value.model.provider]);
+  
+  // Reload model preferences when KeyModal closes (backup mechanism)
+  // Only updates if the stored value differs from current form state to avoid overwriting immediate changes
+  useEffect(() => {
+    if (!keyModalOpen) {
+      // Modal just closed, reload model preferences from storage
+      // Add a small delay to ensure immediate callback has completed
+      const timeoutId = setTimeout(async () => {
+        try {
+          const enc = await getDecryptedJSON<{ 
+            geminiModel?: string;
+            mistralModel?: string;
+          }>('smg_keys_enc', null as any);
+          if (enc) {
+            // Only update if form state doesn't already have the model (avoid overwriting immediate callback)
+            if (enc.geminiModel && value.geminiModel !== enc.geminiModel) {
+              onChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
+            }
+            if (enc.mistralModel && MISTRAL_ENABLED && value.mistralModel !== enc.mistralModel) {
+              onChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
+            }
+          }
+        } catch (error) {
+          console.error('Failed to reload model preferences:', error);
+        }
+      }, 100); // Small delay to let immediate callback complete
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [keyModalOpen, value.geminiModel, value.mistralModel]);
 
   return (
     <div className="space-y-4">
@@ -95,7 +140,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           <span>🔑</span>
           API Secrets
           <span className="px-1.5 py-0.5 bg-green-accent/20 rounded text-xs text-green-bright border border-green-accent/30 font-semibold">
-            {activeProvider === 'gemini' ? 'Gemini' : 'Mistral'}
+            {value.geminiModel ? value.geminiModel.replace('gemini-', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Gemini'}
           </span>
         </button>
       </div>
@@ -110,13 +155,34 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
             >
               Gemini
             </button>
-            <button 
-              className={`tab ${value.model.provider==='mistral'?'tab-active':'tab-inactive'}`} 
-              onClick={() => handleProviderChange('mistral')}
-            >
-              Mistral
-            </button>
+            {MISTRAL_ENABLED && (
+              <button 
+                className={`tab ${value.model.provider==='mistral'?'tab-active':'tab-inactive'}`} 
+                onClick={() => handleProviderChange('mistral')}
+              >
+                Mistral
+              </button>
+            )}
           </div>
+          
+          {/* Model Selection Confirmation */}
+          {value.model.provider === 'gemini' && value.geminiModel && (
+            <div className="mt-3 p-3 bg-green-accent/10 border border-green-accent/30 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-green-bright text-lg">✓</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-white">Active Model:</div>
+                  <div className="text-base font-bold text-green-bright mt-0.5">
+                    {value.geminiModel === 'gemini-2.5-flash' 
+                      ? 'Gemini 2.5 Flash (Best Results)' 
+                      : value.geminiModel === 'gemini-2.5-flash-lite'
+                      ? 'Gemini 2.5 Flash-Lite (Fastest)'
+                      : value.geminiModel}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -155,7 +221,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
                   >
                     <span>⚠️</span>
                     <span>
-                      Add at least <strong>2 API keys</strong> for {activeProvider === 'gemini' ? 'Gemini' : 'Mistral'} in <strong>API Secrets</strong> to enable Parallel Mode.
+                      Add at least <strong>2 API keys</strong> for Gemini in <strong>API Secrets</strong> to enable Parallel Mode.
                     </span>
                   </button>
                 )}
@@ -172,6 +238,25 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           // Enable Parallel Mode whenever ANY provider has 2+ usable keys.
           // This keeps the UX simple and avoids mismatch between modal provider and form provider.
           setCanUseParallel(usableCount >= 2);
+        }}
+        onModelChanged={(provider, model) => {
+          console.log(`🔄 APIControls: onModelChanged called with ${provider} -> ${model}`);
+          // Update form state immediately when model changes in KeyModal
+          if (provider === 'gemini') {
+            console.log(`📝 APIControls: Updating geminiModel from ${value.geminiModel} to ${model}`);
+            onChange(prev => {
+              const updated = { ...prev, geminiModel: model as any };
+              console.log(`✅ APIControls: Form state updated, new geminiModel: ${updated.geminiModel}`);
+              return updated;
+            });
+          } else if (MISTRAL_ENABLED) {
+            console.log(`📝 APIControls: Updating mistralModel from ${value.mistralModel} to ${model}`);
+            onChange(prev => {
+              const updated = { ...prev, mistralModel: model as any };
+              console.log(`✅ APIControls: Form state updated, new mistralModel: ${updated.mistralModel}`);
+              return updated;
+            });
+          }
         }}
       />
       <LoginModal 

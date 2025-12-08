@@ -46,9 +46,14 @@ export default function Page() {
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [completionStats, setCompletionStats] = useState<CompletionStats | null>(null);
 
+  // Feature flag: Mistral is temporarily disabled (paid service)
+  const MISTRAL_ENABLED = false;
+
   const [form, setForm] = useState({
     platform: 'adobe' as 'general' | 'adobe' | 'shutterstock',
     model: { provider: 'gemini' as 'gemini' | 'mistral', preview: false },
+    geminiModel: 'gemini-2.5-flash' as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite' | undefined,
+    mistralModel: undefined as 'mistral-small-latest' | 'mistral-medium-latest' | 'mistral-large-latest' | undefined,
     titleLen: 70, // Adobe Stock requirement: 70 chars max
     descLen: 150 as 150,
     keywordCount: 41,
@@ -109,6 +114,9 @@ export default function Page() {
         return {
           ...prev,
           ...updated,
+          // Explicitly preserve model fields to ensure they're not lost during state updates
+          geminiModel: updated.geminiModel !== undefined ? updated.geminiModel : prev.geminiModel,
+          mistralModel: updated.mistralModel !== undefined ? updated.mistralModel : prev.mistralModel,
           model: {
             ...prev.model,
             ...updated.model,
@@ -136,6 +144,9 @@ export default function Page() {
         return {
           ...prev,
           ...newForm,
+          // Explicitly preserve model fields to ensure they're not lost during state updates
+          geminiModel: newForm.geminiModel !== undefined ? newForm.geminiModel : prev.geminiModel,
+          mistralModel: newForm.mistralModel !== undefined ? newForm.mistralModel : prev.mistralModel,
           model: {
             ...prev.model,
             ...newForm.model,
@@ -158,7 +169,7 @@ export default function Page() {
     }
   }, []);
   
-  // Load bearer token based on current provider
+  // Load bearer token and model preferences based on current provider
   const updateBearerToken = useCallback(async () => {
     try {
       const enc = await getDecryptedJSON<{ 
@@ -167,12 +178,24 @@ export default function Page() {
         active?: 'gemini'|'mistral';
         activeKeyId?: string;
         bearer?: string;
+        geminiModel?: string;
+        mistralModel?: string;
       }>('smg_keys_enc', null as any);
       
       if (!enc) {
         bearerRef.current = '';
         console.warn('⚠ No encrypted keys found in storage');
         return;
+      }
+      
+      // ALWAYS load model preferences FIRST (before key loading, so it runs even if key is found)
+      if (enc.geminiModel) {
+        handleFormChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
+        console.log(`✅ Loaded Gemini model preference: ${enc.geminiModel}`);
+      }
+      if (enc.mistralModel && MISTRAL_ENABLED) {
+        handleFormChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
+        console.log(`✅ Loaded Mistral model preference: ${enc.mistralModel}`);
       }
       
       // Use the current provider from form state, not stored active
@@ -213,12 +236,82 @@ export default function Page() {
       console.error('❌ Error loading bearer token:', error);
       bearerRef.current = '';
     }
-  }, [form.model.provider]);
+  }, [form.model.provider, handleFormChange]);
   
   // Load bearer token on mount and when provider changes
   useEffect(() => {
     updateBearerToken();
   }, [updateBearerToken]);
+  
+  // Force provider to Gemini if Mistral is disabled
+  useEffect(() => {
+    if (!MISTRAL_ENABLED && form.model.provider === 'mistral') {
+      handleFormChange(prev => ({ 
+        ...prev, 
+        model: { ...prev.model, provider: 'gemini' } 
+      }));
+    }
+  }, [form.model.provider, handleFormChange]);
+  
+  // Listen for model preference changes (from Header's KeyModal or other sources)
+  useEffect(() => {
+    const handleModelChange = async (event: CustomEvent) => {
+      const { provider, model } = event.detail;
+      console.log(`📢 Received modelPreferenceChanged event: ${provider} -> ${model}`);
+      
+      try {
+        // Reload from storage to get the latest value
+        const enc = await getDecryptedJSON<{ 
+          geminiModel?: string;
+          mistralModel?: string;
+        }>('smg_keys_enc', null as any);
+        
+        if (enc) {
+          if (provider === 'gemini' && enc.geminiModel && form.geminiModel !== enc.geminiModel) {
+            console.log(`🔄 Updating geminiModel from event: ${form.geminiModel} -> ${enc.geminiModel}`);
+            handleFormChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
+          } else if (provider === 'mistral' && MISTRAL_ENABLED && enc.mistralModel && form.mistralModel !== enc.mistralModel) {
+            console.log(`🔄 Updating mistralModel from event: ${form.mistralModel} -> ${enc.mistralModel}`);
+            handleFormChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to update model from event:', error);
+      }
+    };
+    
+    // Listen for custom event
+    window.addEventListener('modelPreferenceChanged', handleModelChange as EventListener);
+    
+    // Also listen for storage events (cross-tab/window)
+    const handleStorageChange = async () => {
+      try {
+        const enc = await getDecryptedJSON<{ 
+          geminiModel?: string;
+          mistralModel?: string;
+        }>('smg_keys_enc', null as any);
+        if (enc) {
+          if (enc.geminiModel && form.geminiModel !== enc.geminiModel) {
+            console.log(`🔄 Storage event: Updating geminiModel to ${enc.geminiModel}`);
+            handleFormChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
+          }
+          if (enc.mistralModel && MISTRAL_ENABLED && form.mistralModel !== enc.mistralModel) {
+            console.log(`🔄 Storage event: Updating mistralModel to ${enc.mistralModel}`);
+            handleFormChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check storage for model changes:', error);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('modelPreferenceChanged', handleModelChange as EventListener);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [form.geminiModel, form.mistralModel, handleFormChange]);
 
   // Reset progress-related state when files are cleared
   useEffect(() => {
@@ -402,6 +495,8 @@ export default function Page() {
         negativeTitle: form.negativeTitle,
         negativeKeywords: form.negativeKeywords,
         model: { provider: form.model.provider, preview: form.model.preview },
+        geminiModel: form.geminiModel,
+        mistralModel: form.mistralModel,
         files: [file].map(f => ({ 
           name: f.name, 
           type: f.type, 
@@ -605,13 +700,13 @@ export default function Page() {
         setProcessingProgress(0); // Start at 0, will update as files complete
         
         // Initialize key pool for the current provider
-        await keyPoolManager.initialize(form.model.provider);
+        const initResult = await keyPoolManager.initialize(form.model.provider);
         const availableKeys = keyPoolManager.getKeyCount(form.model.provider);
         
-        if (availableKeys === 0) {
+        if (!initResult.success || availableKeys === 0) {
           setError({
             id: Date.now().toString(),
-            message: `No keys selected for parallel generation. Please select keys in the "API Secrets" modal.`,
+            message: initResult.error || `No keys selected for parallel generation. Please select keys in the "API Secrets" modal.`,
             severity: 'error',
             duration: 7000
           });
@@ -619,7 +714,8 @@ export default function Page() {
           return;
         }
         
-        console.log(`🔑 Parallel mode: Using ${availableKeys} selected key(s) for ${form.model.provider}`);
+        const selectedModel = keyPoolManager.getModel(form.model.provider);
+        console.log(`🔑 Parallel mode: Using ${availableKeys} selected key(s) for ${form.model.provider}, model: ${selectedModel}`);
         
         let currentIndex = 0;
         const total = files.length;
@@ -738,9 +834,24 @@ export default function Page() {
       // Show completion modal only if generation completed (not stopped early)
       if (!shouldStopRef.current && allRows.length > 0) {
         const platformName = form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock';
-        const modelName = form.model.provider === 'gemini' 
-          ? (form.model.preview ? 'Gemini 1.5 Pro' : 'Gemini 2.0 Flash')
-          : 'Mistral';
+        
+        // Get model display name from selected model
+        let modelName: string;
+        if (form.model.provider === 'gemini') {
+          if (form.geminiModel) {
+            // Map internal model names to user-friendly display names
+            const modelMap: Record<string, string> = {
+              'gemini-2.5-flash': 'Gemini 2.5 Flash',
+              'gemini-2.5-flash-lite': 'Gemini 2.5 Flash-Lite'
+            };
+            modelName = modelMap[form.geminiModel] || 'Gemini 2.5 Flash';
+          } else {
+            // Fallback to old preview logic for backward compatibility
+            modelName = form.model.preview ? 'Gemini 1.5 Pro' : 'Gemini 2.5 Flash';
+          }
+        } else {
+          modelName = 'Mistral';
+        }
         
         setCompletionStats({
           totalFiles: files.length,
@@ -839,6 +950,8 @@ export default function Page() {
         negativeTitle: form.negativeTitle,
         negativeKeywords: form.negativeKeywords,
         model: { provider: form.model.provider, preview: form.model.preview },
+        geminiModel: form.geminiModel,
+        mistralModel: form.mistralModel,
         files: [file].map(f => ({ 
           name: f.name, 
           type: f.type, 
@@ -1030,6 +1143,8 @@ export default function Page() {
         negativeTitle: form.negativeTitle,
         negativeKeywords: form.negativeKeywords,
         model: { provider: form.model.provider, preview: form.model.preview },
+        geminiModel: form.geminiModel,
+        mistralModel: form.mistralModel,
         files: [file].map(f => ({ 
           name: f.name, 
           type: f.type, 
