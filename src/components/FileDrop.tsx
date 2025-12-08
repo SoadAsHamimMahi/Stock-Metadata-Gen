@@ -39,6 +39,7 @@ export default function FileDrop({
   rows = [],
   onRegenerate,
   onRegenerateAll,
+  onRegenerateFailed,
   processingProgress = 0,
   onStopProcessing,
   onRowsUpdate,
@@ -58,6 +59,7 @@ export default function FileDrop({
   rows?: Row[];
   onRegenerate?: (filename: string) => void;
   onRegenerateAll?: () => void;
+  onRegenerateFailed?: () => void;
   processingProgress?: number;
   onStopProcessing?: () => void;
   onRowsUpdate?: (rows: Row[]) => void;
@@ -385,6 +387,33 @@ export default function FileDrop({
                   <>
                     <span>🔄</span>
                     <span>Regenerate All ({filesWithResults.length})</span>
+                  </>
+                )}
+              </button>
+            );
+          })()}
+          {onRegenerateFailed && (() => {
+            const failedFiles = files.filter(f => {
+              const row = rows.find(r => r.filename === f.name);
+              return row?.error;
+            });
+            const canRegenerateFailed = failedFiles.length > 0 && !generating;
+            return (
+              <button
+                className={`btn btn-secondary text-sm flex items-center gap-1 ${!canRegenerateFailed ? 'btn-disabled' : ''}`}
+                onClick={onRegenerateFailed}
+                disabled={!canRegenerateFailed}
+                title="Regenerate metadata for failed files only (use when some files had errors)"
+              >
+                {generating && failedFiles.length > 0 ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Retrying...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🔁</span>
+                    <span>Retry Failed ({failedFiles.length})</span>
                   </>
                 )}
               </button>
@@ -820,7 +849,13 @@ function FileCard({
                 className={`btn text-sm flex items-center gap-1.5 ripple-effect ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
                 onClick={() => !isGenerating && onRegenerate(file.name)}
                 disabled={isGenerating}
-                title={row ? "Regenerate metadata for this file (use if you're not satisfied with results)" : "Process this single file (use when you want to test one file first)"}
+                title={
+                  row?.error 
+                    ? "Retry this failed file (API quota may have been exceeded)" 
+                    : row 
+                    ? "Regenerate metadata for this file (use if you're not satisfied with results)" 
+                    : "Process this single file (use when you want to test one file first)"
+                }
               >
                 {isGenerating ? (
                   <>
@@ -830,7 +865,7 @@ function FileCard({
                 ) : (
                   <>
                     <span className="text-base">✨</span>
-                    <span>{row ? 'Regenerate' : 'Generate'}</span>
+                    <span>{row?.error ? 'Retry' : row ? 'Regenerate' : 'Generate'}</span>
                   </>
                 )}
               </button>

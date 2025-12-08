@@ -15,6 +15,7 @@ interface KeyPool {
 class KeyPoolManager {
   private pools: Map<'gemini' | 'mistral', KeyPool> = new Map();
   private initialized: boolean = false;
+  private exhaustedKeys: Set<string> = new Set(); // Track exhausted keys (format: "provider:key")
 
   /**
    * Initialize the key pool for a provider
@@ -123,6 +124,41 @@ class KeyPoolManager {
   getKeyCount(provider: 'gemini' | 'mistral'): number {
     const pool = this.pools.get(provider);
     return pool ? pool.keys.length : 0;
+  }
+
+  /**
+   * Mark a key as exhausted (quota exceeded)
+   */
+  markKeyExhausted(provider: 'gemini' | 'mistral', key: string): void {
+    const keyId = `${provider}:${key}`;
+    this.exhaustedKeys.add(keyId);
+    console.warn(`⚠️ Marked ${provider} key ${key.substring(0, 8)}... as exhausted`);
+  }
+
+  /**
+   * Check if a key is exhausted
+   */
+  isKeyExhausted(provider: 'gemini' | 'mistral', key: string): boolean {
+    const keyId = `${provider}:${key}`;
+    return this.exhaustedKeys.has(keyId);
+  }
+
+  /**
+   * Get the number of available (non-exhausted) keys
+   */
+  getAvailableKeyCount(provider: 'gemini' | 'mistral'): number {
+    const pool = this.pools.get(provider);
+    if (!pool || pool.keys.length === 0) return 0;
+    
+    return pool.keys.filter(key => !this.isKeyExhausted(provider, key)).length;
+  }
+
+  /**
+   * Reset exhausted keys (call when starting new generation)
+   */
+  resetExhaustedKeys(): void {
+    this.exhaustedKeys.clear();
+    console.log('🔄 Reset exhausted keys - fresh start for new generation');
   }
 
   /**

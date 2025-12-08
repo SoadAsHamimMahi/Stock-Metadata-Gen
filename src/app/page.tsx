@@ -545,7 +545,72 @@ export default function Page() {
         const errorData = await res.json().catch(() => ({}));
         const errorMsg = errorData.message || errorData.error || `Failed to generate metadata for ${file.name}`;
         
-        // Add error row immediately
+        // Check if this is a quota exhaustion error
+        const isQuotaExhausted = res.status === 429 && (
+          errorMsg.toLowerCase().includes('quota') ||
+          errorMsg.toLowerCase().includes('exceeded') ||
+          errorMsg.toLowerCase().includes('free_tier') ||
+          errorMsg.toLowerCase().includes('rate limit exceeded') ||
+          errorData.error?.message?.toLowerCase().includes('quota')
+        );
+        
+        // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
+        if (isQuotaExhausted && assignedKey && form.parallelMode && workerId !== undefined) {
+          keyPoolManager.markKeyExhausted(form.model.provider, assignedKey);
+          const availableKeys = keyPoolManager.getAvailableKeyCount(form.model.provider);
+          
+          console.warn(`⚠️ Worker ${workerId}: API key exhausted. Stopping this worker. Other workers will continue.`);
+          
+          // If all keys exhausted, stop all workers
+          if (availableKeys === 0) {
+            console.error('🛑 All API keys exhausted! Stopping all workers.');
+            shouldStopRef.current = true;
+            setError({
+              id: Date.now().toString(),
+              message: 'All API keys have exceeded their quota limits. Generation stopped. Please wait or add more API keys.',
+              severity: 'error',
+              duration: 10000
+            });
+          } else {
+            console.log(`ℹ️ Worker ${workerId} stopped: API quota exceeded. ${availableKeys} key(s) still available.`);
+          }
+          
+          // Create error row with quota exhaustion message
+          const errorRow: Row = {
+            filename: file.name,
+            platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+            title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
+            description: 'API quota exceeded for this key. This worker has stopped. Other workers will continue.',
+            keywords: [],
+            assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+            extension: file.ext || '',
+            error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
+          };
+          allRows.push(errorRow);
+          setRows([...allRows]);
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          // Clear worker ID mapping
+          setFileToWorkerId(prev => {
+            const next = new Map(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
+          setFailedCount(prev => prev + 1);
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / files.length) * 100));
+          return; // Stop this worker from processing more files
+        }
+        
+        // Regular error handling (non-quota errors)
         const errorRow: Row = {
           filename: file.name,
           platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
@@ -618,16 +683,80 @@ export default function Page() {
       unsubscribe();
       unsubscribeCallbacks.delete(file.name);
       console.error(`Error processing ${file.name}:`, fileError);
-      // Add error row for this file
+      
+      // Check if this is a quota exhaustion error in the catch block
+      const errorMsg = fileError.message || 'Unknown error';
+      const isQuotaExhausted = fileError?.status === 429 && (
+        errorMsg.toLowerCase().includes('quota') ||
+        errorMsg.toLowerCase().includes('exceeded') ||
+        errorMsg.toLowerCase().includes('free_tier') ||
+        errorMsg.toLowerCase().includes('rate limit exceeded')
+      );
+      
+      // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
+      if (isQuotaExhausted && assignedKey && form.parallelMode && workerId !== undefined) {
+        keyPoolManager.markKeyExhausted(form.model.provider, assignedKey);
+        const availableKeys = keyPoolManager.getAvailableKeyCount(form.model.provider);
+        
+        console.warn(`⚠️ Worker ${workerId}: API key exhausted (from catch). Stopping this worker. Other workers will continue.`);
+        
+        // If all keys exhausted, stop all workers
+        if (availableKeys === 0) {
+          console.error('🛑 All API keys exhausted! Stopping all workers.');
+          shouldStopRef.current = true;
+          setError({
+            id: Date.now().toString(),
+            message: 'All API keys have exceeded their quota limits. Generation stopped. Please wait or add more API keys.',
+            severity: 'error',
+            duration: 10000
+          });
+        } else {
+          console.log(`ℹ️ Worker ${workerId} stopped: API quota exceeded. ${availableKeys} key(s) still available.`);
+        }
+        
+        // Create error row with quota exhaustion message
+        const errorRow: Row = {
+          filename: file.name,
+          platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+          title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
+          description: 'API quota exceeded for this key. This worker has stopped. Other workers will continue.',
+          keywords: [],
+          assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+          extension: file.ext || '',
+          error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
+        };
+        allRows.push(errorRow);
+        setRows([...allRows]);
+        
+        // Remove from generating set
+        setGeneratingFiles(prev => {
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        // Clear worker ID mapping
+        setFileToWorkerId(prev => {
+          const next = new Map(prev);
+          next.delete(file.name);
+          return next;
+        });
+        completedCountRef.current++;
+        setFailedCount(prev => prev + 1);
+        const completed = completedCountRef.current;
+        setProcessingProgress(Math.round((completed / files.length) * 100));
+        return; // Stop this worker from processing more files
+      }
+      
+      // Regular error handling (non-quota errors)
       const errorRow: Row = {
         filename: file.name,
         platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
-        title: `[ERROR] ${fileError.message || 'Generation failed'}`,
+        title: `[ERROR] ${errorMsg}`,
         description: 'Generation failed. Please check your API key and try again.',
         keywords: [],
         assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
         extension: file.ext || '',
-        error: fileError.message || 'Unknown error'
+        error: errorMsg
       };
       allRows.push(errorRow);
       setRows([...allRows]); // Update UI immediately with error
@@ -653,6 +782,11 @@ export default function Page() {
 
   const onGenerateAll = async () => {
     if (!files.length) return;
+    
+    // Reset exhausted keys when starting fresh generation
+    if (form.parallelMode) {
+      keyPoolManager.resetExhaustedKeys();
+    }
     
     // Ensure bearer token is loaded before starting
     await updateBearerToken();
@@ -739,7 +873,14 @@ export default function Page() {
           
           while (true) {
             if (shouldStopRef.current) {
+              console.log(`🛑 Worker ${workerId}: Stopped by user or all keys exhausted`);
               break;
+            }
+            
+            // Check if assigned key is exhausted before processing each file
+            if (keyPoolManager.isKeyExhausted(form.model.provider, assignedKey)) {
+              console.warn(`⚠️ Worker ${workerId}: Assigned key exhausted, stopping this worker`);
+              break; // This worker stops completely - don't try to get another key
             }
             
             const myIndex = currentIndex++;
@@ -896,7 +1037,8 @@ export default function Page() {
     filesToRegenerate: typeof files,
     completedCountRef: { current: number },
     unsubscribeCallbacks: Map<string, () => void>,
-    assignedKey?: string // Optional: specific API key for this worker
+    assignedKey?: string, // Optional: specific API key for this worker
+    workerId?: number // Optional: worker ID for parallel mode (0-indexed)
   ): Promise<void> => {
     if (shouldStopRef.current) {
       return;
@@ -1000,7 +1142,66 @@ export default function Page() {
         const errorData = await res.json().catch(() => ({}));
         const errorMsg = errorData.message || errorData.error || `Failed to regenerate metadata for ${file.name}`;
         
-        // Update row with error
+        // Check if this is a quota exhaustion error
+        const isQuotaExhausted = res.status === 429 && (
+          errorMsg.toLowerCase().includes('quota') ||
+          errorMsg.toLowerCase().includes('exceeded') ||
+          errorMsg.toLowerCase().includes('free_tier') ||
+          errorMsg.toLowerCase().includes('rate limit exceeded') ||
+          errorData.error?.message?.toLowerCase().includes('quota')
+        );
+        
+        // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
+        if (isQuotaExhausted && assignedKey && form.parallelMode && workerId !== undefined) {
+          keyPoolManager.markKeyExhausted(form.model.provider, assignedKey);
+          const availableKeys = keyPoolManager.getAvailableKeyCount(form.model.provider);
+          
+          console.warn(`⚠️ Worker ${workerId}: API key exhausted (regenerate). Stopping this worker. Other workers will continue.`);
+          
+          // If all keys exhausted, stop all workers
+          if (availableKeys === 0) {
+            console.error('🛑 All API keys exhausted! Stopping all workers.');
+            shouldStopRef.current = true;
+            setError({
+              id: Date.now().toString(),
+              message: 'All API keys have exceeded their quota limits. Generation stopped. Please wait or add more API keys.',
+              severity: 'error',
+              duration: 10000
+            });
+          } else {
+            console.log(`ℹ️ Worker ${workerId} stopped: API quota exceeded. ${availableKeys} key(s) still available.`);
+          }
+          
+          // Update row with quota exhaustion error
+          setRows(prev => {
+            const updated = [...prev];
+            const idx = updated.findIndex(r => r.filename === file.name);
+            if (idx >= 0) {
+              updated[idx] = {
+                ...updated[idx],
+                title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
+                error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
+              };
+            }
+            return updated;
+          });
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
+          setFailedCount(prev => prev + 1);
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
+          return; // Stop this worker from processing more files
+        }
+        
+        // Regular error handling (non-quota errors)
         setRows(prev => {
           const updated = [...prev];
           const idx = updated.findIndex(r => r.filename === file.name);
@@ -1069,15 +1270,71 @@ export default function Page() {
       unsubscribe();
       unsubscribeCallbacks.delete(file.name);
       console.error(`Error regenerating ${file.name}:`, fileError);
-      // Update row with error
+      
+      // Check if this is a quota exhaustion error in the catch block
+      const errorMsg = fileError.message || 'Unknown error';
+      const isQuotaExhausted = fileError?.status === 429 && (
+        errorMsg.toLowerCase().includes('quota') ||
+        errorMsg.toLowerCase().includes('exceeded') ||
+        errorMsg.toLowerCase().includes('free_tier') ||
+        errorMsg.toLowerCase().includes('rate limit exceeded')
+      );
+      
+      // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
+      if (isQuotaExhausted && assignedKey && form.parallelMode && workerId !== undefined) {
+        keyPoolManager.markKeyExhausted(form.model.provider, assignedKey);
+        const availableKeys = keyPoolManager.getAvailableKeyCount(form.model.provider);
+        
+        console.warn(`⚠️ Worker ${workerId}: API key exhausted (regenerate, from catch). Stopping this worker. Other workers will continue.`);
+        
+        // If all keys exhausted, stop all workers
+        if (availableKeys === 0) {
+          console.error('🛑 All API keys exhausted! Stopping all workers.');
+          shouldStopRef.current = true;
+          setError({
+            id: Date.now().toString(),
+            message: 'All API keys have exceeded their quota limits. Generation stopped. Please wait or add more API keys.',
+            severity: 'error',
+            duration: 10000
+          });
+        } else {
+          console.log(`ℹ️ Worker ${workerId} stopped: API quota exceeded. ${availableKeys} key(s) still available.`);
+        }
+        
+        // Update row with quota exhaustion error
+        setRows(prev => {
+          const updated = [...prev];
+          const idx = updated.findIndex(r => r.filename === file.name);
+          if (idx >= 0) {
+            updated[idx] = {
+              ...updated[idx],
+              title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
+              error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
+            };
+          }
+          return updated;
+        });
+        
+        // Remove from generating set
+        setGeneratingFiles(prev => {
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        completedCountRef.current++;
+        setProcessingProgress(Math.round((completedCountRef.current / filesToRegenerate.length) * 100));
+        return; // Stop this worker from processing more files
+      }
+      
+      // Regular error handling (non-quota errors)
       setRows(prev => {
         const updated = [...prev];
         const idx = updated.findIndex(r => r.filename === file.name);
         if (idx >= 0) {
           updated[idx] = {
             ...updated[idx],
-            title: `[ERROR] ${fileError.message || 'Regeneration failed'}`,
-            error: fileError.message || 'Unknown error'
+            title: `[ERROR] ${errorMsg}`,
+            error: errorMsg
           };
         }
         return updated;
@@ -1233,6 +1490,10 @@ export default function Page() {
   };
 
   const onRegenerateAll = async () => {
+    // Reset exhausted keys when starting regeneration
+    if (form.parallelMode) {
+      keyPoolManager.resetExhaustedKeys();
+    }
     // Find all files that have existing results (rows)
     const filesWithResults = files.filter(f => rows.some(r => r.filename === f.name));
     
@@ -1322,7 +1583,14 @@ export default function Page() {
           
           while (true) {
             if (shouldStopRef.current) {
+              console.log(`🛑 Worker ${workerId}: Stopped by user or all keys exhausted`);
               break;
+            }
+            
+            // Check if assigned key is exhausted before processing each file
+            if (keyPoolManager.isKeyExhausted(form.model.provider, assignedKey)) {
+              console.warn(`⚠️ Worker ${workerId}: Assigned key exhausted, stopping this worker`);
+              break; // This worker stops completely - don't try to get another key
             }
             
             const myIndex = currentIndex++;
@@ -1330,7 +1598,7 @@ export default function Page() {
               break; // Queue empty, this worker stops
             }
             
-            await regenerateFile(myIndex, filesWithResults, completedCountRef, unsubscribeCallbacks, assignedKey);
+            await regenerateFile(myIndex, filesWithResults, completedCountRef, unsubscribeCallbacks, assignedKey, workerId);
           }
         };
         
@@ -1368,6 +1636,171 @@ export default function Page() {
       unsubscribeCallbacks.forEach(unsub => unsub());
     } catch (e: any) {
       console.error('Regenerate all error:', e);
+      setError({
+        id: Date.now().toString(),
+        message: e.message || 'Regeneration failed. Please check your API key and try again.',
+        severity: 'error',
+        duration: 5000
+      });
+    } finally {
+      setBusy(false);
+      setProcessingProgress(100);
+      setGeneratingFiles(new Set()); // Clear all generating files
+      setFileToWorkerId(new Map()); // Clear worker ID mappings
+    }
+  };
+
+  const onRegenerateFailed = async () => {
+    // Reset exhausted keys when starting regeneration
+    if (form.parallelMode) {
+      keyPoolManager.resetExhaustedKeys();
+    }
+    // Find all files that have error rows
+    const failedFiles = files.filter(f => {
+      const row = rows.find(r => r.filename === f.name);
+      return row?.error; // Only files with errors
+    });
+    
+    if (failedFiles.length === 0) {
+      setError({
+        id: Date.now().toString(),
+        message: 'No failed files to regenerate.',
+        severity: 'info',
+        duration: 3000
+      });
+      return;
+    }
+    
+    // Ensure bearer token is loaded before starting
+    await updateBearerToken();
+    
+    // Check if bearer token is available
+    if (!bearerRef.current || bearerRef.current.length === 0) {
+      setError({
+        id: Date.now().toString(),
+        message: `No API key found for ${form.model.provider}. Please add an API key in the "API Secrets" modal.`,
+        severity: 'error',
+        duration: 7000
+      });
+      return;
+    }
+    
+    setBusy(true);
+    shouldStopRef.current = false;
+    setProcessingProgress(0);
+    setSuccessCount(0);
+    setFailedCount(0);
+    
+    try {
+      const completedCountRef = { current: 0 };
+      const unsubscribeCallbacks = new Map<string, () => void>();
+      
+      if (form.singleMode) {
+        // Single mode: Process one file at a time
+        for (let i = 0; i < failedFiles.length; i++) {
+          if (shouldStopRef.current) {
+            console.log('🛑 Regeneration stopped by user');
+            setBusy(false);
+            setGeneratingFiles(new Set());
+            unsubscribeCallbacks.forEach(unsub => unsub());
+            return;
+          }
+          
+          await regenerateFile(i, failedFiles, completedCountRef, unsubscribeCallbacks);
+        }
+      } else if (form.parallelMode) {
+        // Parallel mode: Use worker queue to process multiple files concurrently
+        setProcessingProgress(0); // Start at 0, will update as files complete
+        
+        // Initialize key pool for the current provider
+        const initResult = await keyPoolManager.initialize(form.model.provider);
+        const availableKeys = keyPoolManager.getKeyCount(form.model.provider);
+        
+        if (!initResult.success || availableKeys === 0) {
+          setError({
+            id: Date.now().toString(),
+            message: initResult.error || `No keys selected for parallel generation. Please select keys in the "API Secrets" modal.`,
+            severity: 'error',
+            duration: 7000
+          });
+          setBusy(false);
+          return;
+        }
+        
+        const selectedModel = keyPoolManager.getModel(form.model.provider);
+        console.log(`🔑 Regenerate Failed (parallel mode): Using ${availableKeys} selected key(s) for ${form.model.provider}, model: ${selectedModel}`);
+        
+        let currentIndex = 0;
+        const total = failedFiles.length;
+        
+        // Worker function that processes files from the queue
+        // Each worker gets assigned a unique API key from the pool
+        const worker = async (workerId: number) => {
+          // Get assigned key for this worker (round-robin distribution)
+          const assignedKey = keyPoolManager.getKeyByIndex(form.model.provider, workerId);
+          
+          if (!assignedKey) {
+            console.error(`❌ Worker ${workerId}: No API key available`);
+            return;
+          }
+          
+          console.log(`👷 Regenerate Failed Worker ${workerId}: Assigned API key ${assignedKey.substring(0, 8)}...`);
+          
+          while (true) {
+            if (shouldStopRef.current) {
+              console.log(`🛑 Worker ${workerId}: Stopped by user or all keys exhausted`);
+              break;
+            }
+            
+            // Check if assigned key is exhausted before processing each file
+            if (keyPoolManager.isKeyExhausted(form.model.provider, assignedKey)) {
+              console.warn(`⚠️ Worker ${workerId}: Assigned key exhausted, stopping this worker`);
+              break; // This worker stops completely - don't try to get another key
+            }
+            
+            const myIndex = currentIndex++;
+            if (myIndex >= total) {
+              break; // Queue empty, this worker stops
+            }
+            
+            await regenerateFile(myIndex, failedFiles, completedCountRef, unsubscribeCallbacks, assignedKey, workerId);
+          }
+        };
+        
+        // Start multiple workers in parallel, each with its own API key
+        const numWorkers = Math.min(MAX_CONCURRENT_WORKERS, failedFiles.length, availableKeys);
+        console.log(`⚡ Starting ${numWorkers} parallel regenerate failed workers with ${availableKeys} selected key(s)`);
+        
+        await Promise.all(
+          Array.from({ length: numWorkers }, (_, i) => worker(i))
+        );
+        
+        // If stopped early, clean up remaining subscriptions
+        if (shouldStopRef.current) {
+          console.log('🛑 Regeneration stopped by user');
+          unsubscribeCallbacks.forEach(unsub => unsub());
+        }
+      } else {
+        // Default sequential mode: Process files one-by-one
+        setProcessingProgress(0); // Start at 0, will update as files complete
+        
+        for (let i = 0; i < failedFiles.length; i++) {
+          if (shouldStopRef.current) {
+            console.log('🛑 Regeneration stopped by user');
+            setBusy(false);
+            setGeneratingFiles(new Set());
+            unsubscribeCallbacks.forEach(unsub => unsub());
+            return;
+          }
+          
+          await regenerateFile(i, failedFiles, completedCountRef, unsubscribeCallbacks);
+        }
+      }
+      
+      // Clean up any remaining subscriptions
+      unsubscribeCallbacks.forEach(unsub => unsub());
+    } catch (e: any) {
+      console.error('Regenerate failed error:', e);
       setError({
         id: Date.now().toString(),
         message: e.message || 'Regeneration failed. Please check your API key and try again.',
@@ -1489,6 +1922,7 @@ export default function Page() {
               rows={rows}
               onRegenerate={onRegenerate}
               onRegenerateAll={onRegenerateAll}
+              onRegenerateFailed={onRegenerateFailed}
               processingProgress={processingProgress}
               onStopProcessing={onStopProcessing}
               onRowsUpdate={setRows}
