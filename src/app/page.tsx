@@ -255,33 +255,37 @@ export default function Page() {
   
   // Listen for model preference changes (from Header's KeyModal or other sources)
   useEffect(() => {
-    const handleModelChange = async (event: CustomEvent) => {
-      const { provider, model } = event.detail;
+    const handleModelChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ provider: 'gemini' | 'mistral'; model: any }>;
+      const { provider, model } = customEvent.detail;
       console.log(`📢 Received modelPreferenceChanged event: ${provider} -> ${model}`);
       
-      try {
-        // Reload from storage to get the latest value
-        const enc = await getDecryptedJSON<{ 
-          geminiModel?: string;
-          mistralModel?: string;
-        }>('smg_keys_enc', null as any);
-        
-        if (enc) {
-          if (provider === 'gemini' && enc.geminiModel && form.geminiModel !== enc.geminiModel) {
-            console.log(`🔄 Updating geminiModel from event: ${form.geminiModel} -> ${enc.geminiModel}`);
-            handleFormChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
-          } else if (provider === 'mistral' && MISTRAL_ENABLED && enc.mistralModel && form.mistralModel !== enc.mistralModel) {
-            console.log(`🔄 Updating mistralModel from event: ${form.mistralModel} -> ${enc.mistralModel}`);
-            handleFormChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
+      // Handle async work without making the handler async
+      void (async () => {
+        try {
+          // Reload from storage to get the latest value
+          const enc = await getDecryptedJSON<{ 
+            geminiModel?: string;
+            mistralModel?: string;
+          }>('smg_keys_enc', null as any);
+          
+          if (enc) {
+            if (provider === 'gemini' && enc.geminiModel && form.geminiModel !== enc.geminiModel) {
+              console.log(`🔄 Updating geminiModel from event: ${form.geminiModel} -> ${enc.geminiModel}`);
+              handleFormChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
+            } else if (provider === 'mistral' && MISTRAL_ENABLED && enc.mistralModel && form.mistralModel !== enc.mistralModel) {
+              console.log(`🔄 Updating mistralModel from event: ${form.mistralModel} -> ${enc.mistralModel}`);
+              handleFormChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
+            }
           }
+        } catch (error) {
+          console.error('Failed to update model from event:', error);
         }
-      } catch (error) {
-        console.error('Failed to update model from event:', error);
-      }
+      })();
     };
     
     // Listen for custom event
-    window.addEventListener('modelPreferenceChanged', handleModelChange as EventListener);
+    window.addEventListener('modelPreferenceChanged', handleModelChange);
     
     // Also listen for storage events (cross-tab/window)
     const handleStorageChange = async () => {
@@ -308,7 +312,7 @@ export default function Page() {
     window.addEventListener('storage', handleStorageChange);
     
     return () => {
-      window.removeEventListener('modelPreferenceChanged', handleModelChange as EventListener);
+      window.removeEventListener('modelPreferenceChanged', handleModelChange);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [form.geminiModel, form.mistralModel, handleFormChange]);
