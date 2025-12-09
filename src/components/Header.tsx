@@ -15,7 +15,7 @@ type HeaderProps = {
   onExportCSV?: () => void;
   hasRows?: boolean;
   geminiModel?: string;
-  onModelChanged?: (provider: 'gemini' | 'mistral', model: any) => void;
+  onModelChanged?: (provider: 'gemini' | 'mistral' | 'groq', model: any) => void;
 };
 
 export default function Header({ onExportCSV, hasRows = false, geminiModel, onModelChanged }: HeaderProps) {
