@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const TestBody = z.object({
-  provider: z.enum(['gemini', 'mistral']),
+  provider: z.enum(['gemini', 'mistral', 'groq']),
   apiKey: z.string().min(1)
 });
 
@@ -163,6 +163,45 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           model: 'mistral-small-latest',
+          messages: [
+            { role: 'user', content: 'Say "test" if you can read this.' }
+          ],
+          max_tokens: 10
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        return NextResponse.json({
+          success: false,
+          error: errorData.error?.message || `API request failed with status ${res.status}`,
+          status: res.status
+        }, { status: 200 }); // Return 200 but with success: false
+      }
+
+      const data = await res.json();
+      if (data.choices?.[0]?.message?.content) {
+        return NextResponse.json({
+          success: true,
+          message: 'API key is valid and working correctly'
+        });
+      }
+
+      return NextResponse.json({
+        success: false,
+        error: 'Unexpected response format from API'
+      }, { status: 200 });
+
+    } else if (provider === 'groq') {
+      // Test Groq API with a minimal request
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-4-maverick-17b-128e-instruct',
           messages: [
             { role: 'user', content: 'Say "test" if you can read this.' }
           ],

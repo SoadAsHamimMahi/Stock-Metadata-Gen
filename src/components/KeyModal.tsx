@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getDecryptedJSON, setEncryptedJSON } from '@/lib/util';
-import type { GeminiModel, MistralModel } from '@/lib/types';
+import type { GeminiModel, MistralModel, GroqModel } from '@/lib/types';
 
 // Feature flag: Mistral is temporarily disabled (paid service)
 const MISTRAL_ENABLED = false;
@@ -29,6 +29,10 @@ const MISTRAL_MODELS: Array<{ value: MistralModel; label: string; quota: string 
   { value: 'mistral-large-latest', label: 'Mistral Large', quota: 'Unlimited (paid tier)' }
 ];
 
+const GROQ_MODELS: Array<{ value: GroqModel; label: string; quota: string }> = [
+  { value: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B (multimodal)', quota: 'Free/preview tier (check Groq docs)' }
+];
+
 export default function KeyModal({
   open,
   onOpenChange,
@@ -37,10 +41,10 @@ export default function KeyModal({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onKeysChanged?: (provider: 'gemini' | 'mistral', usableCount: number) => void;
-  onModelChanged?: (provider: 'gemini' | 'mistral', model: GeminiModel | MistralModel) => void;
+  onKeysChanged?: (provider: 'gemini' | 'mistral' | 'groq', usableCount: number) => void;
+  onModelChanged?: (provider: 'gemini' | 'mistral' | 'groq', model: GeminiModel | MistralModel | GroqModel) => void;
 }) {
-  const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'>('gemini');
+  const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'|'groq'>('gemini');
   
   // Force provider to Gemini if Mistral is disabled
   useEffect(() => {
@@ -51,18 +55,20 @@ export default function KeyModal({
   const [newKey, setNewKey] = useState('');
   const [geminiKeys, setGeminiKeys] = useState<StoredKey[]>([]);
   const [mistralKeys, setMistralKeys] = useState<StoredKey[]>([]);
+  const [groqKeys, setGroqKeys] = useState<StoredKey[]>([]);
   const [activeKeyId, setActiveKeyId] = useState<string>('');
   const [testingNewKey, setTestingNewKey] = useState(false);
   const [newKeyTestResult, setNewKeyTestResult] = useState<{ success: boolean; message?: string } | null>(null);
   const [geminiModel, setGeminiModel] = useState<GeminiModel>('gemini-2.5-flash');
   const [mistralModel, setMistralModel] = useState<MistralModel>('mistral-small-latest');
+  const [groqModel, setGroqModel] = useState<GroqModel>('meta-llama/llama-4-maverick-17b-128e-instruct');
   const [savingModel, setSavingModel] = useState(false);
   const [modelSaved, setModelSaved] = useState(false);
 
   const getUsableCount = (keys: StoredKey[]) =>
     keys.filter(k => k.enabledForParallel !== false && k.key && k.key.trim().length > 0).length;
 
-  const notifyKeysChanged = (provider: 'gemini' | 'mistral', keys: StoredKey[]) => {
+  const notifyKeysChanged = (provider: 'gemini' | 'mistral' | 'groq', keys: StoredKey[]) => {
     onKeysChanged?.(provider, getUsableCount(keys));
   };
 
@@ -72,10 +78,12 @@ export default function KeyModal({
       const v = await getDecryptedJSON<{ 
         geminiKeys?: StoredKey[];
         mistralKeys?: StoredKey[];
-        active?: 'gemini'|'mistral';
+        groqKeys?: StoredKey[];
+        active?: 'gemini'|'mistral'|'groq';
         activeKeyId?: string;
         geminiModel?: GeminiModel;
         mistralModel?: MistralModel;
+        groqModel?: GroqModel;
       }>('smg_keys_enc', null as any);
       if (v) {
         // Ensure backward compatibility: default enabledForParallel to true if not set
@@ -88,8 +96,10 @@ export default function KeyModal({
         
         const normGemini = normalizeKeys(v.geminiKeys);
         const normMistral = normalizeKeys(v.mistralKeys);
+        const normGroq = normalizeKeys(v.groqKeys);
         setGeminiKeys(normGemini);
         setMistralKeys(normMistral);
+        setGroqKeys(normGroq);
 
         const provider = v.active || 'gemini';
         setActiveProvider(provider);
@@ -102,14 +112,23 @@ export default function KeyModal({
         if (v.mistralModel) {
           setMistralModel(v.mistralModel);
         }
+        if (v.groqModel) {
+          // If an old Groq model was stored (e.g., llama-3.3-70b-versatile),
+          // normalize it to the current supported model.
+          const normalizedGroqModel =
+            v.groqModel === 'meta-llama/llama-4-maverick-17b-128e-instruct'
+              ? v.groqModel
+              : 'meta-llama/llama-4-maverick-17b-128e-instruct';
+          setGroqModel(normalizedGroqModel as GroqModel);
+        }
 
-        const initialKeys = provider === 'gemini' ? normGemini : normMistral;
+        const initialKeys = provider === 'gemini' ? normGemini : provider === 'groq' ? normGroq : normMistral;
         notifyKeysChanged(provider, initialKeys);
       }
     })();
   }, [open]);
 
-  const saveModelPreference = async (provider: 'gemini' | 'mistral', model: GeminiModel | MistralModel) => {
+  const saveModelPreference = async (provider: 'gemini' | 'mistral' | 'groq', model: GeminiModel | MistralModel | GroqModel) => {
     try {
       console.log(`💾 saveModelPreference: Starting save for ${provider} -> ${model}`);
       const current = await getDecryptedJSON<any>('smg_keys_enc', null as any);
@@ -119,11 +138,13 @@ export default function KeyModal({
         ...current,
         geminiKeys: geminiKeys,
         mistralKeys: mistralKeys,
+        groqKeys: groqKeys,
         active: activeProvider,
         activeKeyId: activeKeyId,
         bearer: current?.bearer || '',
         geminiModel: provider === 'gemini' ? model : (current?.geminiModel || geminiModel),
-        mistralModel: provider === 'mistral' ? model : (current?.mistralModel || mistralModel)
+        mistralModel: provider === 'mistral' ? model : (current?.mistralModel || mistralModel),
+        groqModel: provider === 'groq' ? model : (current?.groqModel || groqModel)
       };
       
       console.log(`💾 saveModelPreference: Saving data with geminiModel: ${updatedData.geminiModel}, mistralModel: ${updatedData.mistralModel}`);
@@ -155,32 +176,54 @@ export default function KeyModal({
       visible: false,
       enabledForParallel: true // New keys are selected for parallel by default
     };
+    const current = await getDecryptedJSON<any>('smg_keys_enc', null as any);
+    
     if (activeProvider === 'gemini') {
       const updated = [...geminiKeys, keyObj];
       setGeminiKeys(updated);
-      const current = await getDecryptedJSON<any>('smg_keys_enc', null as any);
       await setEncryptedJSON('smg_keys_enc', {
+        ...current,
         geminiKeys: updated,
         mistralKeys,
+        groqKeys,
         active: activeProvider,
         activeKeyId: keyObj.id,
         bearer: newKey.trim(),
         geminiModel: geminiModel,
-        mistralModel: current?.mistralModel || mistralModel
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
       notifyKeysChanged('gemini', updated);
-    } else {
-      const updated = [...mistralKeys, keyObj];
-      setMistralKeys(updated);
-      const current = await getDecryptedJSON<any>('smg_keys_enc', null as any);
+    } else if (activeProvider === 'groq') {
+      const updated = [...groqKeys, keyObj];
+      setGroqKeys(updated);
       await setEncryptedJSON('smg_keys_enc', {
+        ...current,
         geminiKeys,
-        mistralKeys: updated,
+        mistralKeys,
+        groqKeys: updated,
         active: activeProvider,
         activeKeyId: keyObj.id,
         bearer: newKey.trim(),
         geminiModel: current?.geminiModel || geminiModel,
-        mistralModel: mistralModel
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: groqModel
+      });
+      notifyKeysChanged('groq', updated);
+    } else {
+      const updated = [...mistralKeys, keyObj];
+      setMistralKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys,
+        mistralKeys: updated,
+        groqKeys,
+        active: activeProvider,
+        activeKeyId: keyObj.id,
+        bearer: newKey.trim(),
+        geminiModel: current?.geminiModel || geminiModel,
+        mistralModel: mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
       notifyKeysChanged('mistral', updated);
     }
@@ -193,26 +236,48 @@ export default function KeyModal({
       const updated = geminiKeys.filter(k => k.id !== id);
       setGeminiKeys(updated);
       await setEncryptedJSON('smg_keys_enc', {
+        ...current,
         geminiKeys: updated,
         mistralKeys,
+        groqKeys,
         active: activeProvider,
         activeKeyId: updated.length > 0 ? updated[0].id : '',
         bearer: updated.length > 0 ? updated[0].key : '',
         geminiModel: geminiModel,
-        mistralModel: current?.mistralModel || mistralModel
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
       notifyKeysChanged('gemini', updated);
-    } else {
-      const updated = mistralKeys.filter(k => k.id !== id);
-      setMistralKeys(updated);
+    } else if (activeProvider === 'groq') {
+      const updated = groqKeys.filter(k => k.id !== id);
+      setGroqKeys(updated);
       await setEncryptedJSON('smg_keys_enc', {
+        ...current,
         geminiKeys,
-        mistralKeys: updated,
+        mistralKeys,
+        groqKeys: updated,
         active: activeProvider,
         activeKeyId: updated.length > 0 ? updated[0].id : '',
         bearer: updated.length > 0 ? updated[0].key : '',
         geminiModel: current?.geminiModel || geminiModel,
-        mistralModel: mistralModel
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: groqModel
+      });
+      notifyKeysChanged('groq', updated);
+    } else {
+      const updated = mistralKeys.filter(k => k.id !== id);
+      setMistralKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys,
+        mistralKeys: updated,
+        groqKeys,
+        active: activeProvider,
+        activeKeyId: updated.length > 0 ? updated[0].id : '',
+        bearer: updated.length > 0 ? updated[0].key : '',
+        geminiModel: current?.geminiModel || geminiModel,
+        mistralModel: mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
       notifyKeysChanged('mistral', updated);
     }
@@ -221,27 +286,32 @@ export default function KeyModal({
   const toggleVisibility = (id: string) => {
     if (activeProvider === 'gemini') {
       setGeminiKeys(keys => keys.map(k => k.id === id ? { ...k, visible: !k.visible } : k));
+    } else if (activeProvider === 'groq') {
+      setGroqKeys(keys => keys.map(k => k.id === id ? { ...k, visible: !k.visible } : k));
     } else {
       setMistralKeys(keys => keys.map(k => k.id === id ? { ...k, visible: !k.visible } : k));
     }
   };
 
   const setActiveKey = async (id: string) => {
-    const keys = activeProvider === 'gemini' ? geminiKeys : mistralKeys;
+    const keys = activeProvider === 'gemini' ? geminiKeys : activeProvider === 'groq' ? groqKeys : mistralKeys;
     const key = keys.find(k => k.id === id);
     if (key) {
       setActiveKeyId(id);
       const current = await getDecryptedJSON<any>('smg_keys_enc', null as any);
       await setEncryptedJSON('smg_keys_enc', {
+        ...current,
         geminiKeys,
         mistralKeys,
+        groqKeys,
         active: activeProvider,
         activeKeyId: id,
         bearer: key.key,
         geminiModel: geminiModel,
-        mistralModel: current?.mistralModel || mistralModel
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
-      notifyKeysChanged(activeProvider, activeProvider === 'gemini' ? geminiKeys : mistralKeys);
+      notifyKeysChanged(activeProvider, keys);
     }
   };
 
@@ -251,6 +321,8 @@ export default function KeyModal({
       const updateKeyStatus = (status: StoredKey['testStatus'], error?: string) => {
         if (activeProvider === 'gemini') {
           setGeminiKeys(keys => keys.map(k => k.id === id ? { ...k, testStatus: status, testError: error } : k));
+        } else if (activeProvider === 'groq') {
+          setGroqKeys(keys => keys.map(k => k.id === id ? { ...k, testStatus: status, testError: error } : k));
         } else {
           setMistralKeys(keys => keys.map(k => k.id === id ? { ...k, testStatus: status, testError: error } : k));
         }
@@ -298,7 +370,7 @@ export default function KeyModal({
     }
   };
 
-  const currentKeys = activeProvider === 'gemini' ? geminiKeys : mistralKeys;
+  const currentKeys = activeProvider === 'gemini' ? geminiKeys : activeProvider === 'groq' ? groqKeys : mistralKeys;
   const maskKey = (key: string) => {
     if (key.length <= 8) return key;
     return `${key.slice(0, 4)}...${key.slice(-4)}`;
@@ -310,99 +382,91 @@ export default function KeyModal({
 
   // Move key to selected (enable for parallel)
   const moveToSelected = async (id: string) => {
+    const current = await getDecryptedJSON<any>('smg_keys_enc', null as any);
     if (activeProvider === 'gemini') {
-      setGeminiKeys(keys => {
-        const updated = keys.map(k => k.id === id ? { ...k, enabledForParallel: true } : k);
-        getDecryptedJSON<{
-          geminiKeys?: StoredKey[];
-          mistralKeys?: StoredKey[];
-          active?: 'gemini'|'mistral';
-          activeKeyId?: string;
-          geminiModel?: GeminiModel;
-          mistralModel?: MistralModel;
-        }>('smg_keys_enc', null as any).then(enc => {
-          setEncryptedJSON('smg_keys_enc', {
-            ...enc,
-            geminiKeys: updated,
-            geminiModel: geminiModel,
-            mistralModel: enc?.mistralModel || mistralModel
-          }).then(() => {
-            notifyKeysChanged('gemini', updated);
-          });
-        });
-        return updated;
+      const updated = geminiKeys.map(k => k.id === id ? { ...k, enabledForParallel: true } : k);
+      setGeminiKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys: updated,
+        mistralKeys,
+        groqKeys,
+        geminiModel: geminiModel,
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
+      notifyKeysChanged('gemini', updated);
+    } else if (activeProvider === 'groq') {
+      const updated = groqKeys.map(k => k.id === id ? { ...k, enabledForParallel: true } : k);
+      setGroqKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys,
+        mistralKeys,
+        groqKeys: updated,
+        geminiModel: current?.geminiModel || geminiModel,
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: groqModel
+      });
+      notifyKeysChanged('groq', updated);
     } else {
-      setMistralKeys(keys => {
-        const updated = keys.map(k => k.id === id ? { ...k, enabledForParallel: true } : k);
-        getDecryptedJSON<{
-          geminiKeys?: StoredKey[];
-          mistralKeys?: StoredKey[];
-          active?: 'gemini'|'mistral';
-          activeKeyId?: string;
-          geminiModel?: GeminiModel;
-          mistralModel?: MistralModel;
-        }>('smg_keys_enc', null as any).then(enc => {
-          setEncryptedJSON('smg_keys_enc', {
-            ...enc,
-            mistralKeys: updated,
-            geminiModel: enc?.geminiModel || geminiModel,
-            mistralModel: mistralModel
-          }).then(() => {
-            notifyKeysChanged('mistral', updated);
-          });
-        });
-        return updated;
+      const updated = mistralKeys.map(k => k.id === id ? { ...k, enabledForParallel: true } : k);
+      setMistralKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys,
+        mistralKeys: updated,
+        groqKeys,
+        geminiModel: current?.geminiModel || geminiModel,
+        mistralModel: mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
+      notifyKeysChanged('mistral', updated);
     }
   };
 
   // Move key to available (disable for parallel)
   const moveToAvailable = async (id: string) => {
+    const current = await getDecryptedJSON<any>('smg_keys_enc', null as any);
     if (activeProvider === 'gemini') {
-      setGeminiKeys(keys => {
-        const updated = keys.map(k => k.id === id ? { ...k, enabledForParallel: false } : k);
-        getDecryptedJSON<{
-          geminiKeys?: StoredKey[];
-          mistralKeys?: StoredKey[];
-          active?: 'gemini'|'mistral';
-          activeKeyId?: string;
-          geminiModel?: GeminiModel;
-          mistralModel?: MistralModel;
-        }>('smg_keys_enc', null as any).then(enc => {
-          setEncryptedJSON('smg_keys_enc', {
-            ...enc,
-            geminiKeys: updated,
-            geminiModel: geminiModel,
-            mistralModel: enc?.mistralModel || mistralModel
-          }).then(() => {
-            notifyKeysChanged('gemini', updated);
-          });
-        });
-        return updated;
+      const updated = geminiKeys.map(k => k.id === id ? { ...k, enabledForParallel: false } : k);
+      setGeminiKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys: updated,
+        mistralKeys,
+        groqKeys,
+        geminiModel: geminiModel,
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
+      notifyKeysChanged('gemini', updated);
+    } else if (activeProvider === 'groq') {
+      const updated = groqKeys.map(k => k.id === id ? { ...k, enabledForParallel: false } : k);
+      setGroqKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys,
+        mistralKeys,
+        groqKeys: updated,
+        geminiModel: current?.geminiModel || geminiModel,
+        mistralModel: current?.mistralModel || mistralModel,
+        groqModel: groqModel
+      });
+      notifyKeysChanged('groq', updated);
     } else {
-      setMistralKeys(keys => {
-        const updated = keys.map(k => k.id === id ? { ...k, enabledForParallel: false } : k);
-        getDecryptedJSON<{
-          geminiKeys?: StoredKey[];
-          mistralKeys?: StoredKey[];
-          active?: 'gemini'|'mistral';
-          activeKeyId?: string;
-          geminiModel?: GeminiModel;
-          mistralModel?: MistralModel;
-        }>('smg_keys_enc', null as any).then(enc => {
-          setEncryptedJSON('smg_keys_enc', {
-            ...enc,
-            mistralKeys: updated,
-            geminiModel: enc?.geminiModel || geminiModel,
-            mistralModel: mistralModel
-          }).then(() => {
-            notifyKeysChanged('mistral', updated);
-          });
-        });
-        return updated;
+      const updated = mistralKeys.map(k => k.id === id ? { ...k, enabledForParallel: false } : k);
+      setMistralKeys(updated);
+      await setEncryptedJSON('smg_keys_enc', {
+        ...current,
+        geminiKeys,
+        mistralKeys: updated,
+        groqKeys,
+        geminiModel: current?.geminiModel || geminiModel,
+        mistralModel: mistralModel,
+        groqModel: current?.groqModel || groqModel
       });
+      notifyKeysChanged('mistral', updated);
     }
   };
 
@@ -413,6 +477,12 @@ export default function KeyModal({
     // Update all selected keys to testing status
     if (activeProvider === 'gemini') {
       setGeminiKeys(keys => keys.map(k => 
+        selectedKeys.some(sk => sk.id === k.id) 
+          ? { ...k, testStatus: 'testing' as const } 
+          : k
+      ));
+    } else if (activeProvider === 'groq') {
+      setGroqKeys(keys => keys.map(k => 
         selectedKeys.some(sk => sk.id === k.id) 
           ? { ...k, testStatus: 'testing' as const } 
           : k
@@ -440,6 +510,10 @@ export default function KeyModal({
             setGeminiKeys(keys => keys.map(k => 
               k.id === keyObj.id ? { ...k, testStatus: status, testError: error } : k
             ));
+          } else if (activeProvider === 'groq') {
+            setGroqKeys(keys => keys.map(k => 
+              k.id === keyObj.id ? { ...k, testStatus: status, testError: error } : k
+            ));
           } else {
             setMistralKeys(keys => keys.map(k => 
               k.id === keyObj.id ? { ...k, testStatus: status, testError: error } : k
@@ -456,6 +530,10 @@ export default function KeyModal({
         const updateKeyStatus = (status: StoredKey['testStatus'], error?: string) => {
           if (activeProvider === 'gemini') {
             setGeminiKeys(keys => keys.map(k => 
+              k.id === keyObj.id ? { ...k, testStatus: status, testError: error } : k
+            ));
+          } else if (activeProvider === 'groq') {
+            setGroqKeys(keys => keys.map(k => 
               k.id === keyObj.id ? { ...k, testStatus: status, testError: error } : k
             ));
           } else {
@@ -528,69 +606,88 @@ export default function KeyModal({
           </button>
         </div>
 
-        <div className="mb-6">
-          <label className="text-sm font-medium mb-2 block">Select AI Provider</label>
-          <div className={`grid ${MISTRAL_ENABLED ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+        {/* Provider Tabs/Navbar */}
+        <div className="mb-6 border-b border-white/10">
+          <div className="flex gap-1">
             <button
               onClick={() => setActiveProvider('gemini')}
-              className={`p-4 rounded-lg border-2 transition ${
+              className={`px-4 py-3 font-medium text-sm transition-all relative ${
                 activeProvider === 'gemini'
-                  ? 'border-[#14B8A6] bg-[#14B8A6]/10'
-                  : 'border-white/20 hover:border-white/40'
+                  ? 'text-[#14B8A6] border-b-2 border-[#14B8A6]'
+                  : 'text-white/70 hover:text-white'
               }`}
             >
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">✨</span>
-                <div className="flex-1 text-left">
-                  <div className="font-bold mb-1">Google Gemini</div>
-                  <div className="text-xs text-white/70">Google&#39;s advanced AI model for text and image analysis</div>
-                  <div className="flex items-center justify-between mt-2 text-xs">
-                    <span>{geminiKeys.length} key{geminiKeys.length !== 1 ? 's' : ''} stored</span>
-                    {geminiKeys.length > 0 && <span className="text-green-400">Active</span>}
-                  </div>
-                </div>
+              <div className="flex items-center gap-2">
+                <span>✨</span>
+                <span>Google Gemini</span>
+                {geminiKeys.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                    {geminiKeys.length}
+                  </span>
+                )}
+              </div>
+            </button>
+            
+            <button
+              onClick={() => setActiveProvider('groq')}
+              className={`px-4 py-3 font-medium text-sm transition-all relative ${
+                activeProvider === 'groq'
+                  ? 'text-[#14B8A6] border-b-2 border-[#14B8A6]'
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span>⚡</span>
+                <span>Groq</span>
+                {groqKeys.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                    {groqKeys.length}
+                  </span>
+                )}
               </div>
             </button>
 
             {MISTRAL_ENABLED && (
               <button
                 onClick={() => setActiveProvider('mistral')}
-                className={`p-4 rounded-lg border-2 transition ${
+                className={`px-4 py-3 font-medium text-sm transition-all relative ${
                   activeProvider === 'mistral'
-                    ? 'border-[#14B8A6] bg-[#14B8A6]/10'
-                    : 'border-white/20 hover:border-white/40'
+                    ? 'text-[#14B8A6] border-b-2 border-[#14B8A6]'
+                    : 'text-white/70 hover:text-white'
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">🤖</span>
-                  <div className="flex-1 text-left">
-                    <div className="font-bold mb-1">Mistral AI</div>
-                    <div className="text-xs text-white/70">High-performance AI models with strong reasoning capabilities</div>
-                    <div className="flex items-center justify-between mt-2 text-xs">
-                      <span>{mistralKeys.length} key{mistralKeys.length !== 1 ? 's' : ''} stored</span>
-                      {mistralKeys.length > 0 && <span className="text-green-400">Active</span>}
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span>🤖</span>
+                  <span>Mistral AI</span>
+                  {mistralKeys.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                      {mistralKeys.length}
+                    </span>
+                  )}
                 </div>
               </button>
             )}
           </div>
         </div>
 
+        {/* Provider-specific content */}
         <div className="mb-6">
           <label className="text-sm font-medium mb-2 block">Select Model</label>
           <div className="mb-3">
             <div className="flex gap-2 items-start">
               <select
-                value={activeProvider === 'gemini' ? geminiModel : mistralModel}
+                value={activeProvider === 'gemini' ? geminiModel : activeProvider === 'groq' ? groqModel : mistralModel}
                 onChange={(e) => {
-                  const newModel = e.target.value as GeminiModel | MistralModel;
+                  const newModel = e.target.value as GeminiModel | MistralModel | GroqModel;
                   if (activeProvider === 'gemini') {
                     setGeminiModel(newModel as GeminiModel);
-                    setModelSaved(false); // Reset saved state when selection changes
+                    setModelSaved(false);
+                  } else if (activeProvider === 'groq') {
+                    setGroqModel(newModel as GroqModel);
+                    setModelSaved(false);
                   } else if (MISTRAL_ENABLED) {
                     setMistralModel(newModel as MistralModel);
-                    setModelSaved(false); // Reset saved state when selection changes
+                    setModelSaved(false);
                   }
                 }}
                 className="flex-1 bg-white/10 border-2 border-[#14B8A6] rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#14B8A6] cursor-pointer appearance-none hover:bg-white/15 transition-colors"
@@ -601,7 +698,7 @@ export default function KeyModal({
                   paddingRight: '2.5rem'
                 }}
               >
-                {(activeProvider === 'gemini' ? GEMINI_MODELS : (MISTRAL_ENABLED ? MISTRAL_MODELS : GEMINI_MODELS)).map((model) => (
+                {(activeProvider === 'gemini' ? GEMINI_MODELS : activeProvider === 'groq' ? GROQ_MODELS : (MISTRAL_ENABLED ? MISTRAL_MODELS : GEMINI_MODELS)).map((model) => (
                   <option key={model.value} value={model.value} className="bg-dark-elevated">
                     {model.label}
                   </option>
@@ -612,43 +709,29 @@ export default function KeyModal({
                   setSavingModel(true);
                   setModelSaved(false);
                   try {
-                    const currentModel = activeProvider === 'gemini' ? geminiModel : mistralModel;
+                    const currentModel = activeProvider === 'gemini' ? geminiModel : activeProvider === 'groq' ? groqModel : mistralModel;
                     console.log(`💾 Saving model preference: ${activeProvider} -> ${currentModel}`);
                     
                     if (activeProvider === 'gemini') {
-                      // Save to storage first
                       await saveModelPreference('gemini', geminiModel);
                       console.log(`✅ Model saved to storage: ${geminiModel}`);
-                      
-                      // Call the callback to update parent form state IMMEDIATELY
                       if (onModelChanged) {
-                        console.log(`📞 Calling onModelChanged callback with: ${geminiModel}`);
-                        // Call synchronously to ensure immediate update
                         onModelChanged('gemini', geminiModel);
-                        console.log(`✅ Callback executed`);
-                        
-                        // Give React a moment to process the state update
                         await new Promise(resolve => setTimeout(resolve, 50));
-                        console.log(`⏳ Waited for state update to propagate`);
-                      } else {
-                        console.warn('⚠️ onModelChanged callback is not defined');
+                      }
+                    } else if (activeProvider === 'groq') {
+                      await saveModelPreference('groq', groqModel);
+                      console.log(`✅ Model saved to storage: ${groqModel}`);
+                      if (onModelChanged) {
+                        onModelChanged('groq', groqModel);
+                        await new Promise(resolve => setTimeout(resolve, 50));
                       }
                     } else if (MISTRAL_ENABLED) {
-                      // Save to storage first
                       await saveModelPreference('mistral', mistralModel);
                       console.log(`✅ Model saved to storage: ${mistralModel}`);
-                      
                       if (onModelChanged) {
-                        console.log(`📞 Calling onModelChanged callback with: ${mistralModel}`);
-                        // Call synchronously to ensure immediate update
                         onModelChanged('mistral', mistralModel);
-                        console.log(`✅ Callback executed`);
-                        
-                        // Give React a moment to process the state update
                         await new Promise(resolve => setTimeout(resolve, 50));
-                        console.log(`⏳ Waited for state update to propagate`);
-                      } else {
-                        console.warn('⚠️ onModelChanged callback is not defined');
                       }
                     }
                     
@@ -705,6 +788,8 @@ export default function KeyModal({
                   <span>
                     {activeProvider === 'gemini' 
                       ? GEMINI_MODELS.find(m => m.value === geminiModel)?.quota 
+                      : activeProvider === 'groq'
+                      ? GROQ_MODELS.find(m => m.value === groqModel)?.quota
                       : (MISTRAL_ENABLED ? MISTRAL_MODELS.find(m => m.value === mistralModel)?.quota : GEMINI_MODELS.find(m => m.value === geminiModel)?.quota)}
                   </span>
                 </span>
@@ -717,20 +802,31 @@ export default function KeyModal({
                   💡 Free tier: Choose Flash-Lite for speed; choose 2.5 Flash if you need slightly better quality
                 </div>
               )}
+              {activeProvider === 'groq' && (
+                <div className="text-xs text-white/60 italic">
+                  💡 Groq offers fast inference with generous free tier limits
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mb-6">
           <label className="text-sm font-medium mb-2 block">
-            Google Gemini API Keys
+            {activeProvider === 'gemini' ? 'Google Gemini API Keys' : activeProvider === 'groq' ? 'Groq API Keys' : 'Mistral API Keys'}
           </label>
-          <p className="text-xs text-white/70 mb-2">Gemini API keys should start with &#34;AIza&#34;</p>
+          <p className="text-xs text-white/70 mb-2">
+            {activeProvider === 'gemini' 
+              ? 'Gemini API keys should start with "AIza"'
+              : activeProvider === 'groq'
+              ? 'Groq API keys can be obtained from console.groq.com'
+              : 'Mistral API keys should be obtained from console.mistral.ai'}
+          </p>
           <div className="flex gap-2">
             <input
               className="flex-1 bg-white/10 border-2 border-[#14B8A6] rounded-md px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#14B8A6]"
               type="password"
-              placeholder="Enter Gemini API key"
+              placeholder={activeProvider === 'gemini' ? 'Enter Gemini API key' : activeProvider === 'groq' ? 'Enter Groq API key' : 'Enter Mistral API key'}
               value={newKey}
               onChange={(e) => {
                 setNewKey(e.target.value);
@@ -762,12 +858,20 @@ export default function KeyModal({
             </div>
           )}
           <a
-            href={activeProvider === 'gemini' ? 'https://makersuite.google.com/app/apikey' : 'https://console.mistral.ai/api-keys/'}
+            href={activeProvider === 'gemini' 
+              ? 'https://makersuite.google.com/app/apikey' 
+              : activeProvider === 'groq'
+              ? 'https://console.groq.com/keys'
+              : 'https://console.mistral.ai/api-keys/'}
             target="_blank"
             rel="noopener noreferrer"
             className="text-[#14B8A6] text-xs mt-2 inline-flex items-center gap-1 hover:underline"
           >
-            Get Google Gemini API Key
+            {activeProvider === 'gemini' 
+              ? 'Get Google Gemini API Key'
+              : activeProvider === 'groq'
+              ? 'Get Groq API Key'
+              : 'Get Mistral API Key'}
             <span>↗</span>
           </a>
         </div>

@@ -1,10 +1,10 @@
 // src/app/api/generate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { generateWithGemini, generateWithMistral, type ModelArgs } from '@/lib/models';
+import { generateWithGemini, generateWithMistral, generateWithGroq, type ModelArgs } from '@/lib/models';
 import { filenameHints, truncateByChars, isFilenameBased, scoreTitleQuality, filterFilenameBasedKeywords } from '@/lib/util';
 import { enrichKeywords, addScientificNames } from '@/lib/keyword-enrichment';
-import { GeminiModelEnum, MistralModelEnum } from '@/lib/types';
+import { GeminiModelEnum, MistralModelEnum, GroqModelEnum } from '@/lib/types';
 
 // Infer by extension when assetType='auto'
 const inferAsset = (ext: string) =>
@@ -22,9 +22,10 @@ const Body = z.object({
   suffix: z.string().optional(),
   negativeTitle: z.array(z.string()).optional().default([]),
   negativeKeywords: z.array(z.string()).optional().default([]),
-  model: z.object({ provider: z.enum(['gemini','mistral']), preview: z.boolean().optional() }),
+  model: z.object({ provider: z.enum(['gemini','mistral','groq']), preview: z.boolean().optional() }),
   geminiModel: GeminiModelEnum.optional(),
   mistralModel: MistralModelEnum.optional(),
+  groqModel: GroqModelEnum.optional(),
   files: z.array(z.object({ 
     name: z.string(), 
     type: z.string(), 
@@ -398,7 +399,8 @@ export async function POST(req: NextRequest) {
         isVector: a.isVector || false,
         isIllustration: a.isIllustration || false,
         geminiModel: a.geminiModel,
-        mistralModel: a.mistralModel
+        mistralModel: a.mistralModel,
+        groqModel: a.groqModel
       };
       
       // Debug: Log the actual values being used
@@ -412,6 +414,8 @@ export async function POST(req: NextRequest) {
       // Note: generateWithGemini now emits retry events automatically via retryTracker
       const out = a.model.provider === 'gemini'
         ? await generateWithGemini(args)
+        : a.model.provider === 'groq'
+        ? await generateWithGroq(args)
         : await generateWithMistral(args);
 
       // Check for errors first

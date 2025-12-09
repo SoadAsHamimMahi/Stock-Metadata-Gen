@@ -12,7 +12,7 @@ const MISTRAL_ENABLED = false;
 
 export default function APIControls({ value, onChange }: { value: FormState; onChange: (v: FormState | ((prev: FormState) => FormState)) => void }) {
   const [keyModalOpen, setKeyModalOpen] = useState(false);
-  const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'>(value.model.provider);
+  const [activeProvider, setActiveProvider] = useState<'gemini'|'mistral'|'groq'>(value.model.provider);
   const [canUseParallel, setCanUseParallel] = useState(false);
   const { executeGuarded, loginModalOpen, setLoginModalOpen, reason, handleLoginSuccess } = useGuardedAction();
 
@@ -37,9 +37,10 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
 
         const geminiCount = countUsable(enc.geminiKeys);
         const mistralCount = MISTRAL_ENABLED ? countUsable(enc.mistralKeys) : 0;
+        const groqCount = countUsable(enc.groqKeys);
 
         // Enable Parallel Mode if ANY provider already has 2+ usable keys
-        setCanUseParallel(geminiCount >= 2 || mistralCount >= 2);
+        setCanUseParallel(geminiCount >= 2 || mistralCount >= 2 || groqCount >= 2);
       } catch (err) {
         console.error('Failed to initialize Parallel Mode availability:', err);
         setCanUseParallel(false);
@@ -50,7 +51,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
   useEffect(() => {
     // Load active provider from stored keys
     (async () => {
-      const enc = await getDecryptedJSON<{ active?: 'gemini'|'mistral' } | null>('smg_keys_enc', null);
+      const enc = await getDecryptedJSON<{ active?: 'gemini'|'mistral'|'groq' } | null>('smg_keys_enc', null);
       if (enc?.active) {
         setActiveProvider(enc.active);
       }
@@ -77,7 +78,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
     onChange({ ...value, [key]: { ...(value[key] as any), [sub]: v } });
   };
 
-  const handleProviderChange = (provider: 'gemini' | 'mistral') => {
+  const handleProviderChange = (provider: 'gemini' | 'mistral' | 'groq') => {
     // Block Mistral if disabled
     if (provider === 'mistral' && !MISTRAL_ENABLED) {
       return;
@@ -107,6 +108,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           const enc = await getDecryptedJSON<{ 
             geminiModel?: string;
             mistralModel?: string;
+            groqModel?: string;
           }>('smg_keys_enc', null as any);
           if (enc) {
             // Only update if form state doesn't already have the model (avoid overwriting immediate callback)
@@ -116,6 +118,9 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
             if (enc.mistralModel && MISTRAL_ENABLED && value.mistralModel !== enc.mistralModel) {
               onChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
             }
+            if (enc.groqModel && value.groqModel !== enc.groqModel) {
+              onChange(prev => ({ ...prev, groqModel: enc.groqModel as any }));
+            }
           }
         } catch (error) {
           console.error('Failed to reload model preferences:', error);
@@ -124,7 +129,7 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
       
       return () => clearTimeout(timeoutId);
     }
-  }, [keyModalOpen, value.geminiModel, value.mistralModel]);
+  }, [keyModalOpen, value.geminiModel, value.mistralModel, value.groqModel]);
 
   return (
     <div className="space-y-4">
@@ -139,9 +144,6 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
         >
           <span>🔑</span>
           API Secrets
-          <span className="px-1.5 py-0.5 bg-green-accent/20 rounded text-xs text-green-bright border border-green-accent/30 font-semibold">
-            {value.geminiModel ? value.geminiModel.replace('gemini-', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Gemini'}
-          </span>
         </button>
       </div>
 
@@ -155,6 +157,12 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
             >
               Gemini
             </button>
+            <button 
+              className={`tab ${value.model.provider==='groq'?'tab-active':'tab-inactive'}`} 
+              onClick={() => handleProviderChange('groq')}
+            >
+              Groq
+            </button>
             {MISTRAL_ENABLED && (
               <button 
                 className={`tab ${value.model.provider==='mistral'?'tab-active':'tab-inactive'}`} 
@@ -166,6 +174,19 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           </div>
           
           {/* Model Selection Confirmation */}
+          {value.model.provider === 'groq' && value.groqModel && (
+            <div className="mt-3 p-3 bg-green-accent/10 border border-green-accent/30 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-green-bright text-lg">✓</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-white">Active Model:</div>
+                  <div className="text-base font-bold text-green-bright mt-0.5">
+                    Llama 4 Maverick 17B
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {value.model.provider === 'gemini' && value.geminiModel && (
             <div className="mt-3 p-3 bg-green-accent/10 border border-green-accent/30 rounded-lg">
               <div className="flex items-center gap-2">
@@ -221,7 +242,18 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
                   >
                     <span>⚠️</span>
                     <span>
-                      Add at least <strong>2 API keys</strong> for Gemini in <strong>API Secrets</strong> to enable Parallel Mode.
+                      {value.model.provider === 'groq' ? (
+                        <>
+                          Add at least <strong>2 Groq API keys</strong> (ideally from{" "}
+                          <strong>different Gmail / Groq accounts</strong>) in{" "}
+                          <strong>API Secrets</strong> to use Groq Parallel Mode effectively.
+                        </>
+                      ) : (
+                        <>
+                          Add at least <strong>2 API keys</strong> for{" "}
+                          <strong>Gemini</strong> in <strong>API Secrets</strong> to enable Parallel Mode.
+                        </>
+                      )}
                     </span>
                   </button>
                 )}
@@ -247,6 +279,13 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
             onChange(prev => {
               const updated = { ...prev, geminiModel: model as any };
               console.log(`✅ APIControls: Form state updated, new geminiModel: ${updated.geminiModel}`);
+              return updated;
+            });
+          } else if (provider === 'groq') {
+            console.log(`📝 APIControls: Updating groqModel from ${value.groqModel} to ${model}`);
+            onChange(prev => {
+              const updated = { ...prev, groqModel: model as any };
+              console.log(`✅ APIControls: Form state updated, new groqModel: ${updated.groqModel}`);
               return updated;
             });
           } else if (MISTRAL_ENABLED) {

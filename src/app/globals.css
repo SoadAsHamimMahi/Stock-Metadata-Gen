@@ -503,6 +503,28 @@ body::before {
   animation: fadeInScale 0.3s ease-out both;
 }
 
+/* Top announcement ticker (marquee-style) */
+@keyframes ticker-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-container {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker-marquee 25s linear infinite;
+}
+
 /* Section dividers */
 .section-divider {
   @apply border-t border-green-accent/20 my-6;

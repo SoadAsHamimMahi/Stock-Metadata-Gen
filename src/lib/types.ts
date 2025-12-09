@@ -15,8 +15,13 @@ export const MistralModelEnum = z.enum([
   'mistral-large-latest'
 ]);
 
+export const GroqModelEnum = z.enum([
+  'meta-llama/llama-4-maverick-17b-128e-instruct'
+]);
+
 export type GeminiModel = z.infer<typeof GeminiModelEnum>;
 export type MistralModel = z.infer<typeof MistralModelEnum>;
+export type GroqModel = z.infer<typeof GroqModelEnum>;
 
 export const FileSchema = z.object({
   name: z.string(),
@@ -28,7 +33,7 @@ export const FileSchema = z.object({
 
 export const FormSchema = z.object({
   platform: PlatformEnum,
-  model: z.object({ provider: z.enum(['gemini','mistral']), preview: z.boolean().optional() }),
+  model: z.object({ provider: z.enum(['gemini','mistral','groq']), preview: z.boolean().optional() }),
   titleLen: z.number().min(20).max(200),
   descLen: z.literal(150),
   keywordCount: z.number().min(5).max(49),
@@ -45,7 +50,8 @@ export const FormSchema = z.object({
   isVector: z.boolean().optional().default(false),
   isIllustration: z.boolean().optional().default(false),
   geminiModel: GeminiModelEnum.optional(),
-  mistralModel: MistralModelEnum.optional()
+  mistralModel: MistralModelEnum.optional(),
+  groqModel: GroqModelEnum.optional()
 });
 
 export type FormState = z.infer<typeof FormSchema>;

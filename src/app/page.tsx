@@ -51,9 +51,10 @@ export default function Page() {
 
   const [form, setForm] = useState({
     platform: 'adobe' as 'general' | 'adobe' | 'shutterstock',
-    model: { provider: 'gemini' as 'gemini' | 'mistral', preview: false },
+    model: { provider: 'gemini' as 'gemini' | 'mistral' | 'groq', preview: false },
     geminiModel: 'gemini-2.5-flash' as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite' | undefined,
     mistralModel: undefined as 'mistral-small-latest' | 'mistral-medium-latest' | 'mistral-large-latest' | undefined,
+    groqModel: undefined as 'meta-llama/llama-4-maverick-17b-128e-instruct' | undefined,
     titleLen: 70, // Adobe Stock requirement: 70 chars max
     descLen: 150 as 150,
     keywordCount: 41,
@@ -117,6 +118,7 @@ export default function Page() {
           // Explicitly preserve model fields to ensure they're not lost during state updates
           geminiModel: updated.geminiModel !== undefined ? updated.geminiModel : prev.geminiModel,
           mistralModel: updated.mistralModel !== undefined ? updated.mistralModel : prev.mistralModel,
+          groqModel: updated.groqModel !== undefined ? updated.groqModel : prev.groqModel,
           model: {
             ...prev.model,
             ...updated.model,
@@ -175,11 +177,13 @@ export default function Page() {
       const enc = await getDecryptedJSON<{ 
         geminiKeys?: Array<{ id: string; key: string; visible: boolean }>;
         mistralKeys?: Array<{ id: string; key: string; visible: boolean }>;
-        active?: 'gemini'|'mistral';
+        groqKeys?: Array<{ id: string; key: string; visible: boolean }>;
+        active?: 'gemini'|'mistral'|'groq';
         activeKeyId?: string;
         bearer?: string;
         geminiModel?: string;
         mistralModel?: string;
+        groqModel?: string;
       }>('smg_keys_enc', null as any);
       
       if (!enc) {
@@ -197,10 +201,14 @@ export default function Page() {
         handleFormChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
         console.log(`✅ Loaded Mistral model preference: ${enc.mistralModel}`);
       }
+      if (enc.groqModel) {
+        handleFormChange(prev => ({ ...prev, groqModel: enc.groqModel as any }));
+        console.log(`✅ Loaded Groq model preference: ${enc.groqModel}`);
+      }
       
       // Use the current provider from form state, not stored active
       const currentProvider = form.model.provider;
-      const keys = currentProvider === 'gemini' ? enc.geminiKeys : enc.mistralKeys;
+      const keys = currentProvider === 'gemini' ? enc.geminiKeys : currentProvider === 'groq' ? enc.groqKeys : enc.mistralKeys;
       const activeKeyId = enc.activeKeyId;
       
       // Try to find the active key for current provider
@@ -256,7 +264,7 @@ export default function Page() {
   // Listen for model preference changes (from Header's KeyModal or other sources)
   useEffect(() => {
     const handleModelChange = (event: Event) => {
-      const customEvent = event as CustomEvent<{ provider: 'gemini' | 'mistral'; model: any }>;
+      const customEvent = event as CustomEvent<{ provider: 'gemini' | 'mistral' | 'groq'; model: any }>;
       const { provider, model } = customEvent.detail;
       console.log(`📢 Received modelPreferenceChanged event: ${provider} -> ${model}`);
       
@@ -267,12 +275,16 @@ export default function Page() {
           const enc = await getDecryptedJSON<{ 
             geminiModel?: string;
             mistralModel?: string;
+            groqModel?: string;
           }>('smg_keys_enc', null as any);
           
           if (enc) {
             if (provider === 'gemini' && enc.geminiModel && form.geminiModel !== enc.geminiModel) {
               console.log(`🔄 Updating geminiModel from event: ${form.geminiModel} -> ${enc.geminiModel}`);
               handleFormChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
+            } else if (provider === 'groq' && enc.groqModel && form.groqModel !== enc.groqModel) {
+              console.log(`🔄 Updating groqModel from event: ${form.groqModel} -> ${enc.groqModel}`);
+              handleFormChange(prev => ({ ...prev, groqModel: enc.groqModel as any }));
             } else if (provider === 'mistral' && MISTRAL_ENABLED && enc.mistralModel && form.mistralModel !== enc.mistralModel) {
               console.log(`🔄 Updating mistralModel from event: ${form.mistralModel} -> ${enc.mistralModel}`);
               handleFormChange(prev => ({ ...prev, mistralModel: enc.mistralModel as any }));
@@ -293,11 +305,16 @@ export default function Page() {
         const enc = await getDecryptedJSON<{ 
           geminiModel?: string;
           mistralModel?: string;
+          groqModel?: string;
         }>('smg_keys_enc', null as any);
         if (enc) {
           if (enc.geminiModel && form.geminiModel !== enc.geminiModel) {
             console.log(`🔄 Storage event: Updating geminiModel to ${enc.geminiModel}`);
             handleFormChange(prev => ({ ...prev, geminiModel: enc.geminiModel as any }));
+          }
+          if (enc.groqModel && form.groqModel !== enc.groqModel) {
+            console.log(`🔄 Storage event: Updating groqModel to ${enc.groqModel}`);
+            handleFormChange(prev => ({ ...prev, groqModel: enc.groqModel as any }));
           }
           if (enc.mistralModel && MISTRAL_ENABLED && form.mistralModel !== enc.mistralModel) {
             console.log(`🔄 Storage event: Updating mistralModel to ${enc.mistralModel}`);
@@ -315,7 +332,7 @@ export default function Page() {
       window.removeEventListener('modelPreferenceChanged', handleModelChange);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [form.geminiModel, form.mistralModel, handleFormChange]);
+  }, [form.geminiModel, form.mistralModel, form.groqModel, handleFormChange]);
 
   // Reset progress-related state when files are cleared
   useEffect(() => {
@@ -501,6 +518,7 @@ export default function Page() {
         model: { provider: form.model.provider, preview: form.model.preview },
         geminiModel: form.geminiModel,
         mistralModel: form.mistralModel,
+        groqModel: form.groqModel,
         files: [file].map(f => ({ 
           name: f.name, 
           type: f.type, 
@@ -892,9 +910,14 @@ export default function Page() {
           }
         };
         
-        // Start multiple workers in parallel, each with its own API key
-        const numWorkers = Math.min(MAX_CONCURRENT_WORKERS, files.length, availableKeys);
-        console.log(`⚡ Starting ${numWorkers} parallel workers with ${availableKeys} selected key(s)`);
+        // Start workers in parallel, each with its own API key
+        // For Groq, allow parallel workers (up to 5) so multiple accounts/orgs can be used
+        const maxGroqWorkers = 5;
+        const numWorkers =
+          form.model.provider === 'groq'
+            ? Math.min(maxGroqWorkers, MAX_CONCURRENT_WORKERS, files.length, availableKeys)
+            : Math.min(MAX_CONCURRENT_WORKERS, files.length, availableKeys);
+        console.log(`⚡ Starting ${numWorkers} parallel workers with ${availableKeys} selected key(s) for provider ${form.model.provider}`);
         
         await Promise.all(
           Array.from({ length: numWorkers }, (_, i) => worker(i))
@@ -993,6 +1016,15 @@ export default function Page() {
           } else {
             // Fallback to old preview logic for backward compatibility
             modelName = form.model.preview ? 'Gemini 1.5 Pro' : 'Gemini 2.5 Flash';
+          }
+        } else if (form.model.provider === 'groq') {
+          if (form.groqModel) {
+            const modelMap: Record<string, string> = {
+              'meta-llama/llama-4-maverick-17b-128e-instruct': 'Llama 4 Maverick 17B'
+            };
+            modelName = modelMap[form.groqModel] || 'Groq';
+          } else {
+            modelName = 'Groq';
           }
         } else {
           modelName = 'Mistral';
@@ -1098,6 +1130,7 @@ export default function Page() {
         model: { provider: form.model.provider, preview: form.model.preview },
         geminiModel: form.geminiModel,
         mistralModel: form.mistralModel,
+        groqModel: form.groqModel,
         files: [file].map(f => ({ 
           name: f.name, 
           type: f.type, 
@@ -1406,6 +1439,7 @@ export default function Page() {
         model: { provider: form.model.provider, preview: form.model.preview },
         geminiModel: form.geminiModel,
         mistralModel: form.mistralModel,
+        groqModel: form.groqModel,
         files: [file].map(f => ({ 
           name: f.name, 
           type: f.type, 
@@ -1602,9 +1636,14 @@ export default function Page() {
           }
         };
         
-        // Start multiple workers in parallel, each with its own API key
-        const numWorkers = Math.min(MAX_CONCURRENT_WORKERS, filesWithResults.length, availableKeys);
-        console.log(`⚡ Starting ${numWorkers} parallel regenerate workers with ${availableKeys} selected key(s)`);
+        // Start workers in parallel, each with its own API key
+        // For Groq, allow parallel workers (up to 5) so multiple accounts/orgs can be used
+        const maxGroqWorkers = 5;
+        const numWorkers =
+          form.model.provider === 'groq'
+            ? Math.min(maxGroqWorkers, MAX_CONCURRENT_WORKERS, filesWithResults.length, availableKeys)
+            : Math.min(MAX_CONCURRENT_WORKERS, filesWithResults.length, availableKeys);
+        console.log(`⚡ Starting ${numWorkers} parallel regenerate workers with ${availableKeys} selected key(s) for provider ${form.model.provider}`);
         
         await Promise.all(
           Array.from({ length: numWorkers }, (_, i) => worker(i))

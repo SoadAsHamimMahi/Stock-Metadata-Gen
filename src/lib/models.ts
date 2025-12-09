@@ -1,7 +1,7 @@
 // src/lib/models.ts
 import { filenameHints, truncateByChars, dedupe, filterFilenameBasedKeywords } from './util';
 
-import type { GeminiModel, MistralModel } from './types';
+import type { GeminiModel, MistralModel, GroqModel } from './types';
 
 export type ModelArgs = {
   platform: 'general' | 'adobe' | 'shutterstock';
@@ -26,6 +26,7 @@ export type ModelArgs = {
   isIllustration?: boolean;
   geminiModel?: GeminiModel;  // Selected Gemini model
   mistralModel?: MistralModel; // Selected Mistral model
+  groqModel?: GroqModel; // Selected Groq model
 };
 
 export type ModelOut = { 
@@ -705,6 +706,228 @@ export async function generateWithMistral(a: ModelArgs): Promise<ModelOut> {
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content ?? '{}';
   try { return asModelOut(JSON.parse(text)); } catch { return fallback(a); }
+}
+
+// Simple cooldown + retry config for Groq
+// Track cooldown per API key rather than globally so that
+// multiple Groq keys (e.g., from different accounts/orgs)
+// can be used in parallel without blocking each other.
+const groqLastCallTimes = new Map<string, number>();
+// Be conservative with Groq to avoid TPM rate limits for each key:
+// - Cooldown between generations per key
+// - Additional delay between retries when errors occur
+const GROQ_COOLDOWN_MS = 12000;     // 12 seconds between generations per key
+const GROQ_MAX_RETRIES = 3;         // 3 additional attempts after the first try
+const GROQ_RETRY_DELAY_MS = 5000;   // 5 seconds between retries
+
+export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
+  // Use bearer token if provided and not empty, otherwise fall back to environment variable
+  const key = (a.bearer && a.bearer.trim().length > 0) ? a.bearer.trim() : process.env.GROQ_API_KEY;
+  if (!key || key.trim().length === 0) {
+    throw new Error('GROQ_API_KEY missing. Please provide an API key via Authorization header or set GROQ_API_KEY environment variable.');
+  }
+
+  const keyId = key.trim();
+
+  const hasImage = !!(a.imageData || a.imageUrl);
+
+  // Respect a per-key cooldown between Groq generations to avoid TPM bursts
+  const lastTime = groqLastCallTimes.get(keyId);
+  if (lastTime && lastTime > 0) {
+    const elapsed = Date.now() - lastTime;
+    if (elapsed < GROQ_COOLDOWN_MS) {
+      const wait = GROQ_COOLDOWN_MS - elapsed;
+      console.log(`⏳ Groq cooldown for key ${keyId.substring(0, 8)}...: waiting ${wait}ms before next generation`);
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+  }
+
+  // Only one Groq model is currently supported and it is multimodal (text + vision).
+  // If the caller passes a different/old model, normalize to Maverick.
+  const visionModel = 'meta-llama/llama-4-maverick-17b-128e-instruct';
+  const textModel = a.groqModel === visionModel || !a.groqModel
+    ? visionModel
+    : visionModel;
+
+  // Use the same model for both text-only and vision to keep behavior consistent.
+  const modelName = hasImage ? visionModel : textModel;
+  
+  const prompt = buildUserPrompt(a);
+  
+  let messages: any[];
+
+  if (hasImage) {
+    // Vision request: send both text prompt and image
+    const userContent: any[] = [
+      { type: 'text', text: prompt }
+    ];
+
+    if (a.imageUrl) {
+      userContent.push({
+        type: 'image_url',
+        image_url: { url: a.imageUrl }
+      });
+    } else if (a.imageData) {
+      // a.imageData is a data URL (data:image/...;base64,...) - Groq supports image_url with data URLs
+      userContent.push({
+        type: 'image_url',
+        image_url: { url: a.imageData }
+      });
+    }
+
+    messages = [
+      { role: 'system', content: 'Respond with PURE JSON only: {"title": string, "description": string, "keywords": string[]}' },
+      { role: 'user', content: userContent }
+    ];
+  } else {
+    // Text-only request (no image)
+    messages = [
+      { role: 'system', content: 'Respond with PURE JSON only: {"title": string, "description": string, "keywords": string[]}' },
+      { role: 'user', content: prompt }
+    ];
+  }
+
+  const body = {
+    model: modelName,
+    messages: messages,
+    temperature: 0.7,
+    response_format: { type: 'json_object' }
+  };
+
+  let lastError: any = null;
+
+  // First attempt + up to GROQ_MAX_RETRIES additional attempts
+  for (let attempt = 0; attempt <= GROQ_MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.warn(`⚠ Groq retry attempt ${attempt}/${GROQ_MAX_RETRIES} after previous failure. Waiting ${GROQ_RETRY_DELAY_MS}ms...`);
+        await new Promise(resolve => setTimeout(resolve, GROQ_RETRY_DELAY_MS));
+      }
+
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${key}` 
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        const baseMessage = `Groq API error (${res.status}): ${errorText.substring(0, 200)}`;
+        console.error(baseMessage);
+
+        const error: any = new Error(baseMessage);
+        error.status = res.status;
+
+        // Decide if we should retry this error
+        const status = res.status;
+        const lowerText = errorText.toLowerCase();
+        const isRetryable = 
+          status === 429 || // rate limit / TPM
+          status === 500 ||
+          status === 502 ||
+          status === 503 ||
+          status === 504 ||
+          lowerText.includes('rate limit') ||
+          lowerText.includes('temporarily') ||
+          lowerText.includes('overloaded') ||
+          lowerText.includes('try again');
+
+        if (isRetryable && attempt < GROQ_MAX_RETRIES) {
+          lastError = error;
+          continue; // go to next retry attempt
+        }
+
+        // Non-retryable error or out of retries: return structured error/fallback
+        groqLastCallTimes.set(keyId, Date.now());
+        if (a.imageData) {
+          return { 
+            title: '', 
+            description: '', 
+            keywords: [], 
+            error: baseMessage
+          };
+        }
+        return fallback(a);
+      }
+
+      const data = await res.json();
+      const text = data?.choices?.[0]?.message?.content ?? '{}';
+      
+      try {
+        const parsed = asModelOut(JSON.parse(text));
+        const safeTitle = parsed.title || '';
+        if (a.imageData && safeTitle.length < 10) {
+          console.warn(`⚠ WARNING: Image was provided but title is very short or empty. Groq may not have analyzed the image.`);
+          if (safeTitle.length < 5) {
+            groqLastCallTimes.set(keyId, Date.now());
+            return { 
+              title: '', 
+              description: '', 
+              keywords: [], 
+              error: 'Image analysis failed: Groq returned empty or invalid title despite image being provided.' 
+            };
+          }
+        }
+        groqLastCallTimes.set(keyId, Date.now());
+        return parsed;
+      } catch (parseError: any) {
+        console.error('❌ JSON parse error:', parseError?.message);
+        groqLastCallTimes.set(keyId, Date.now());
+        if (a.imageData) {
+          return { 
+            title: '', 
+            description: '', 
+            keywords: [], 
+            error: `Failed to parse Groq response: ${parseError?.message}` 
+          };
+        }
+        return fallback(a);
+      }
+    } catch (error: any) {
+      // Network or other unexpected error
+      console.error('❌ generateWithGroq error:', error?.message || error);
+      lastError = error;
+
+      const status = (error as any)?.status;
+      const msg = String(error?.message || '').toLowerCase();
+      const isRetryable =
+        status === 429 ||
+        status === 500 ||
+        status === 502 ||
+        status === 503 ||
+        status === 504 ||
+        msg.includes('rate limit') ||
+        msg.includes('temporarily') ||
+        msg.includes('overloaded') ||
+        msg.includes('try again') ||
+        msg.includes('timeout');
+
+      if (isRetryable && attempt < GROQ_MAX_RETRIES) {
+        continue; // retry after delay at top of loop
+      }
+
+      // Non-retryable error or out of retries
+      break;
+    }
+  }
+
+  // If we reach here, all retries have failed
+  groqLastCallTimes.set(keyId, Date.now());
+  const finalMessage = `Groq API request failed after ${GROQ_MAX_RETRIES + 1} attempt(s): ${lastError?.message || 'Unknown error'}`;
+  console.error(finalMessage);
+
+  if (a.imageData) {
+    return { 
+      title: '', 
+      description: '', 
+      keywords: [], 
+      error: finalMessage
+    };
+  }
+  return fallback(a);
 }
 
 // ---------- Guards & fallback
