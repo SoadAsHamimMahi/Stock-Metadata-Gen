@@ -715,9 +715,9 @@ export default function Page() {
         }
         
         // Create error row with quota exhaustion message
-        const errorRow: Row = {
-          filename: file.name,
-          platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+      const errorRow: Row = {
+        filename: file.name,
+        platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
           title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
           description: 'API quota exceeded for this key. This worker has stopped. Other workers will continue.',
           keywords: [],
@@ -1302,27 +1302,27 @@ export default function Page() {
         }
         
         // Update row with quota exhaustion error
-        setRows(prev => {
-          const updated = [...prev];
-          const idx = updated.findIndex(r => r.filename === file.name);
-          if (idx >= 0) {
-            updated[idx] = {
-              ...updated[idx],
+      setRows(prev => {
+        const updated = [...prev];
+        const idx = updated.findIndex(r => r.filename === file.name);
+        if (idx >= 0) {
+          updated[idx] = {
+            ...updated[idx],
               title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
               error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
-            };
-          }
-          return updated;
-        });
-        
-        // Remove from generating set
-        setGeneratingFiles(prev => {
-          const next = new Set(prev);
-          next.delete(file.name);
-          return next;
-        });
-        completedCountRef.current++;
-        setProcessingProgress(Math.round((completedCountRef.current / filesToRegenerate.length) * 100));
+          };
+        }
+        return updated;
+      });
+      
+      // Remove from generating set
+      setGeneratingFiles(prev => {
+        const next = new Set(prev);
+        next.delete(file.name);
+        return next;
+      });
+      completedCountRef.current++;
+      setProcessingProgress(Math.round((completedCountRef.current / filesToRegenerate.length) * 100));
         return; // Stop this worker from processing more files
       }
       

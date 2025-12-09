@@ -175,6 +175,7 @@ CRITICAL: NEVER include ANY words, numbers, IDs, hashes, codes, or alphanumeric 
 Order keywords by importance (MOST CRITICAL for Adobe Stock search visibility).
 ${adobeKeywordGuidance}
 All keywords: lowercase, unique, no quotes, no duplicates.
+CRITICAL DUPLICATE PREVENTION: Before returning JSON, verify all keywords are unique (case-insensitive). If you find duplicates like ["design", "art", "design"], remove duplicates and ensure each keyword appears only once.
 NEVER include banned keywords: [${BANNED_KEYWORDS.join(', ')}].
 `.trim();
 }

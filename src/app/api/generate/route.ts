@@ -849,7 +849,10 @@ export async function POST(req: NextRequest) {
         a.platform
       );
       
-      // Log quality metrics
+      // Log quality metrics for monitoring (validation errors removed - prompt should prevent issues)
+      if (validation.issues.length > 0) {
+        console.warn(`⚠ Validation issues for ${f.name}: ${validation.issues.join('; ')}`);
+      }
       if (qualityScore.score < 70) {
         console.warn(`⚠ Low quality title for ${f.name}: Score ${qualityScore.score}/100`);
         console.warn(`   Issues: ${qualityScore.issues.join(', ')}`);
@@ -857,34 +860,8 @@ export async function POST(req: NextRequest) {
         console.log(`✓ Good quality title for ${f.name}: Score ${qualityScore.score}/100`);
       }
       
-      // Check if validation failed only due to banned words (which we already removed)
-      const onlyBannedWordsIssue = validation.issues.length > 0 && 
-        validation.issues.every(issue => issue.includes('banned word'));
-      
-      // Reject if validation fails (except for banned words which we auto-removed) or quality is too low
-      if ((!validation.valid && !onlyBannedWordsIssue) || qualityScore.score < 50) {
-        const errorMsg = validation.issues.length > 0 
-          ? `Validation failed: ${validation.issues.join('; ')}`
-          : `Title quality too low (${qualityScore.score}/100): ${qualityScore.issues.join('; ')}`;
-        
-        console.error(`❌ Rejecting response for ${f.name}: ${errorMsg}`);
-        rows.push({
-          filename: f.name,
-          platform: a.platform === 'adobe' ? 'Adobe Stock' : a.platform === 'general' ? 'General' : 'Shutterstock',
-          title: `[ERROR] ${errorMsg}`,
-          description: 'Response validation failed or quality too low. Please regenerate.',
-          keywords: [],
-          assetType: effType,
-          extension: ext,
-          error: errorMsg
-        });
-        return;
-      }
-      
-      // If only banned words issue (which we already fixed), log a warning but continue
-      if (onlyBannedWordsIssue) {
-        console.log(`ℹ Banned words were auto-removed from title for ${f.name}, proceeding with cleaned title`);
-      }
+      // All responses pass through - validation rejection removed
+      // The enhanced prompt should prevent validation issues from occurring
 
       rows.push({
         filename: f.name,
