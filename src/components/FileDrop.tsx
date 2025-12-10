@@ -50,7 +50,8 @@ export default function FileDrop({
   retryingFiles = new Map(),
   fileToWorkerId = new Map<string, number>(),
   successCount = 0,
-  failedCount = 0
+  failedCount = 0,
+  showTransparentPngHint = false
 }: {
   files: UploadItem[];
   onFilesChange: (f: UploadItem[]) => void;
@@ -71,6 +72,8 @@ export default function FileDrop({
   fileToWorkerId?: Map<string, number>;
   successCount?: number;
   failedCount?: number;
+  // When true, show a PNG transparency hint under the action buttons.
+  showTransparentPngHint?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -416,7 +419,8 @@ export default function FileDrop({
 
       {/* Action Bar */}
       {files.length > 0 && (
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="flex flex-col gap-3 mb-6">
+          <div className="flex items-center gap-3 flex-wrap">
           <button 
             className="btn btn-secondary text-sm"
             onClick={clearAll}
@@ -535,6 +539,17 @@ export default function FileDrop({
             onChange={onPick}
             className="hidden"
           />
+          </div>
+          {showTransparentPngHint && (
+            <div className="text-xs text-amber-100 bg-amber-500/10 border border-amber-400/40 rounded-md px-3 py-2 flex items-start gap-2">
+              <span>⚠️</span>
+              <span>
+                PNG file detected. If this artwork has a transparent background, enable
+                <span className="font-semibold text-amber-200"> “isolated on transparent background”</span>{' '}
+                in the File Type Attributes panel for the most accurate titles and keywords.
+              </span>
+            </div>
+          )}
         </div>
       )}
 

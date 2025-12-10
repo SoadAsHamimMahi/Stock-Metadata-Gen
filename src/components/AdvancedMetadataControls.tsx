@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { clamp, sanitizeWords } from '@/lib/util';
 import type { FormState } from '@/lib/types';
 
@@ -13,10 +13,23 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
   const [showNegativeKeywords, setShowNegativeKeywords] = useState(false);
   const [fileAttributesCollapsed, setFileAttributesCollapsed] = useState(true);
 
+  // Local text buffers for negative fields so typing with commas/spaces feels natural
+  const [negTitleInput, setNegTitleInput] = useState('');
+  const [negKeywordInput, setNegKeywordInput] = useState('');
+
   const set = <K extends keyof FormState>(key: K, v: FormState[K]) => {
     // Use functional update to ensure we work with latest state
     onChange((prev) => ({ ...prev, [key]: v }));
   };
+
+  // Keep local text in sync when form state changes (e.g. on load)
+  useEffect(() => {
+    setNegTitleInput((value.negativeTitle || []).join(', '));
+  }, [value.negativeTitle]);
+
+  useEffect(() => {
+    setNegKeywordInput((value.negativeKeywords || []).join(', '));
+  }, [value.negativeKeywords]);
 
   const promptPreview = useMemo(() => {
     const negT = value.negativeTitle.join(', ');
@@ -229,8 +242,11 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                   {showNegativeTitle && (
                     <input 
                       className="input" 
-                      value={(value.negativeTitle||[]).join(', ')} 
-                      onChange={(e)=>set('negativeTitle', sanitizeWords(e.target.value.split(',')))} 
+                      value={negTitleInput}
+                      onChange={(e) => setNegTitleInput(e.target.value)}
+                      onBlur={() =>
+                        set('negativeTitle', sanitizeWords(negTitleInput.split(',')))
+                      }
                       placeholder="Comma-separated negative words" 
                     />
                   )}
@@ -247,8 +263,11 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                   {showNegativeKeywords && (
                     <input 
                       className="input" 
-                      value={(value.negativeKeywords||[]).join(', ')} 
-                      onChange={(e)=>set('negativeKeywords', sanitizeWords(e.target.value.split(',')))} 
+                      value={negKeywordInput}
+                      onChange={(e) => setNegKeywordInput(e.target.value)}
+                      onBlur={() =>
+                        set('negativeKeywords', sanitizeWords(negKeywordInput.split(',')))
+                      }
                       placeholder="Comma-separated negative keywords" 
                     />
                   )}

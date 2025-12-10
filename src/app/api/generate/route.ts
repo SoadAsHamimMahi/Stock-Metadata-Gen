@@ -78,6 +78,9 @@ const GENERIC_KEYWORDS = new Set([
   'illustration', 'vector', 'icon', 'symbol', 'pattern', 'background', 'texture'
 ]);
 
+// Helper to safely escape user-provided strings for use in RegExp
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // Adobe Stock title validation
 function validateAdobeTitle(title: string, expectedLen: number): { warnings: string[]; errors: string[] } {
   const warnings: string[] = [];
@@ -665,6 +668,28 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Apply user-defined prefix/suffix to the title AFTER all post-processing,
+      // so the user's overrides are guaranteed to appear in the final result.
+      if (a.prefix && a.prefix.trim().length > 0) {
+        const pref = a.prefix.trim();
+        const prefLower = pref.toLowerCase();
+        const currentLower = title.toLowerCase();
+        // Avoid duplicating prefix if model already added it
+        if (!currentLower.startsWith(prefLower)) {
+          title = `${pref} ${title}`.trim();
+        }
+      }
+
+      if (a.suffix && a.suffix.trim().length > 0) {
+        const suf = a.suffix.trim();
+        const sufLower = suf.toLowerCase();
+        const currentLower = title.toLowerCase();
+        // Avoid duplicating suffix if model already added it
+        if (!currentLower.endsWith(sufLower)) {
+          title = `${title} ${suf}`.trim();
+        }
+      }
+      
       // Ensure title doesn't exceed limit - allow dynamic flexible buffer (13% or min 17 chars) for sentence completion (max 200)
       if (title.length > a.titleLen) {
         const flexibleLimit = Math.max(Math.round(a.titleLen * 0.13), 17);
@@ -675,6 +700,21 @@ export async function POST(req: NextRequest) {
           console.log(`ℹ Title length ${title.length} exceeds base limit ${a.titleLen} but within flexible range (up to ${flexibleMax}), allowing for sentence completion`);
         }
         title = truncateByChars(title, a.titleLen, flexibleLimit, 200);
+      }
+
+      // Apply user-specified negative title terms (case-insensitive).
+      // Any words/phrases listed in negativeTitle will be stripped from the final title.
+      if (Array.isArray(a.negativeTitle) && a.negativeTitle.length > 0) {
+        const banned = a.negativeTitle
+          .map(s => String(s).trim())
+          .filter(Boolean);
+        if (banned.length > 0) {
+          const pattern = new RegExp(`\\b(${banned.map(escapeRegex).join('|')})\\b`, 'gi');
+          const cleaned = title.replace(pattern, ' ').replace(/\s+/g, ' ').trim();
+          if (cleaned.length > 0) {
+            title = cleaned;
+          }
+        }
       }
 
       let description = String(out.description || '').trim();
@@ -776,6 +816,18 @@ export async function POST(req: NextRequest) {
       // Keep original order but add enriched terms, then trim to exact count
       let finalKeywords = [...keywords, ...withScientific.filter(k => !keywords.includes(k))]
         .slice(0, a.keywordCount);
+
+      // Apply user-specified negative keywords (case-insensitive) as a hard filter
+      if (Array.isArray(a.negativeKeywords) && a.negativeKeywords.length > 0) {
+        const negSet = new Set(
+          a.negativeKeywords
+            .map(s => String(s).trim().toLowerCase())
+            .filter(Boolean)
+        );
+        if (negSet.size > 0) {
+          finalKeywords = finalKeywords.filter(k => !negSet.has(String(k).trim().toLowerCase()));
+        }
+      }
       
       // Final post-processing: Filter out filename-based keywords when image is provided (after enrichment)
       if (imageData && finalKeywords.length > 0) {

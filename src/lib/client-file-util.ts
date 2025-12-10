@@ -275,15 +275,30 @@ export async function fileToBase64WithCompression(
 
   let fileToConvert = file;
 
-  // Compress images if requested
+  // Detect PNG so we can preserve transparency but still reduce file size
+  const ext = getFileExtension(file.name);
+  const isPng = ext === 'png' || file.type === 'image/png';
+
+  // Compress images if requested:
+  // - PNG → stay PNG (keeps alpha, avoids artificial black background)
+  // - Others → JPEG (better compression, background already opaque)
   if (compress && isImageFile(file)) {
     try {
-      fileToConvert = await compressImageClient(file, {
-        maxWidth: MAX_DIMENSION,
-        maxHeight: MAX_DIMENSION,
-        quality: QUALITY,
-        format: 'jpeg' // Use JPEG for better compression
-      });
+      if (isPng) {
+        fileToConvert = await compressImageClient(file, {
+          maxWidth: MAX_DIMENSION,
+          maxHeight: MAX_DIMENSION,
+          quality: 0.92,      // PNG ignores quality in most browsers but safe to pass
+          format: 'png'       // Preserve transparency, avoid black fill
+        });
+      } else {
+        fileToConvert = await compressImageClient(file, {
+          maxWidth: MAX_DIMENSION,
+          maxHeight: MAX_DIMENSION,
+          quality: QUALITY,
+          format: 'jpeg'      // Use JPEG for better compression
+        });
+      }
     } catch (error) {
       console.warn('Image compression failed, using original:', error);
       // Continue with original file if compression fails

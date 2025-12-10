@@ -88,7 +88,17 @@ export default function Page() {
 
   const bearerRef = useRef<string>('');
   const { user } = useAuth();
-  
+
+  // Detect when PNG files are present without an explicit background toggle,
+  // so we can gently remind the user to set "isolated on transparent background".
+  const showTransparentPngHint = useMemo(
+    () =>
+      files.some((f) => f.ext?.toLowerCase() === 'png') &&
+      !form.isolatedOnTransparentBackground &&
+      !form.isolatedOnWhiteBackground,
+    [files, form.isolatedOnTransparentBackground, form.isolatedOnWhiteBackground]
+  );
+
   // Helper function to track generation in Firestore
   const trackGenerationInFirestore = async (fileCount: number) => {
     if (!user || fileCount === 0) return;
@@ -2069,6 +2079,7 @@ export default function Page() {
               fileToWorkerId={fileToWorkerId}
               successCount={successCount}
               failedCount={failedCount}
+              showTransparentPngHint={showTransparentPngHint}
             />
           </div>
         </div>
