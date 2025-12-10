@@ -31,6 +31,17 @@ type UploadItem = {
   base64?: string; // Optional base64 data (lazy loaded)
 };
 
+// Estimate the byte size of a base64 data URL (compressed image/frame sent to the AI)
+function estimateDataUrlByteSize(dataUrl: string): number {
+  if (!dataUrl) return 0;
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1) return 0;
+  const base64 = dataUrl.slice(commaIndex + 1);
+  if (!base64) return 0;
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
 export default function Page() {
   const [files, setFiles] = useState<UploadItem[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -499,6 +510,34 @@ export default function Page() {
         try {
           imageData = await fileToBase64WithCompression(file.file, true);
           console.log(`✓ Extracted frame/image data for ${file.name}`);
+          
+          // Estimate compressed byte size from data URL and update file list
+          const compressedBytes = estimateDataUrlByteSize(imageData);
+          const originalFileSize = file.file?.size;
+          if (compressedBytes > 0 && originalFileSize && compressedBytes < originalFileSize) {
+            const compressionRatio = ((1 - compressedBytes / originalFileSize) * 100).toFixed(1);
+            console.log(`📊 Compression for ${file.name}: Original=${originalFileSize} bytes, Compressed=${compressedBytes} bytes (${compressionRatio}% reduction)`);
+            setFiles(prev => {
+              const updated = prev.map(f =>
+                f.name === file.name
+                  ? {
+                      ...f,
+                      // Always use File object's original size to ensure accuracy
+                      originalSize: originalFileSize,
+                      size: compressedBytes
+                    }
+                  : f
+              );
+              // Debug: verify the update
+              const updatedFile = updated.find(f => f.name === file.name);
+              if (updatedFile) {
+                console.log(`✅ Updated file state: originalSize=${updatedFile.originalSize}, size=${updatedFile.size}, will show: ${updatedFile.originalSize !== updatedFile.size}`);
+              }
+              return updated;
+            });
+          } else {
+            console.warn(`⚠️ Compression update skipped for ${file.name}: compressedBytes=${compressedBytes}, originalFileSize=${originalFileSize}, compressedBytes < originalFileSize=${compressedBytes < (originalFileSize || 0)}`);
+          }
         } catch (error) {
           console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
           // For videos, continue without imageData (fallback to filename-based)
@@ -1111,6 +1150,34 @@ export default function Page() {
         try {
           imageData = await fileToBase64WithCompression(file.file, true);
           console.log(`✓ Extracted frame/image data for ${file.name}`);
+          
+          // Estimate compressed byte size from data URL and update file list
+          const compressedBytes = estimateDataUrlByteSize(imageData);
+          const originalFileSize = file.file?.size;
+          if (compressedBytes > 0 && originalFileSize && compressedBytes < originalFileSize) {
+            const compressionRatio = ((1 - compressedBytes / originalFileSize) * 100).toFixed(1);
+            console.log(`📊 Compression for ${file.name}: Original=${originalFileSize} bytes, Compressed=${compressedBytes} bytes (${compressionRatio}% reduction)`);
+            setFiles(prev => {
+              const updated = prev.map(f =>
+                f.name === file.name
+                  ? {
+                      ...f,
+                      // Always use File object's original size to ensure accuracy
+                      originalSize: originalFileSize,
+                      size: compressedBytes
+                    }
+                  : f
+              );
+              // Debug: verify the update
+              const updatedFile = updated.find(f => f.name === file.name);
+              if (updatedFile) {
+                console.log(`✅ Updated file state: originalSize=${updatedFile.originalSize}, size=${updatedFile.size}, will show: ${updatedFile.originalSize !== updatedFile.size}`);
+              }
+              return updated;
+            });
+          } else {
+            console.warn(`⚠️ Compression update skipped for ${file.name}: compressedBytes=${compressedBytes}, originalFileSize=${originalFileSize}, compressedBytes < originalFileSize=${compressedBytes < (originalFileSize || 0)}`);
+          }
         } catch (error) {
           console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
           // For videos, continue without imageData (fallback to filename-based)
@@ -1420,6 +1487,34 @@ export default function Page() {
         try {
           imageData = await fileToBase64WithCompression(file.file, true);
           console.log(`✓ Extracted frame/image data for ${file.name}`);
+          
+          // Estimate compressed byte size from data URL and update file list
+          const compressedBytes = estimateDataUrlByteSize(imageData);
+          const originalFileSize = file.file?.size;
+          if (compressedBytes > 0 && originalFileSize && compressedBytes < originalFileSize) {
+            const compressionRatio = ((1 - compressedBytes / originalFileSize) * 100).toFixed(1);
+            console.log(`📊 Compression for ${file.name}: Original=${originalFileSize} bytes, Compressed=${compressedBytes} bytes (${compressionRatio}% reduction)`);
+            setFiles(prev => {
+              const updated = prev.map(f =>
+                f.name === file.name
+                  ? {
+                      ...f,
+                      // Always use File object's original size to ensure accuracy
+                      originalSize: originalFileSize,
+                      size: compressedBytes
+                    }
+                  : f
+              );
+              // Debug: verify the update
+              const updatedFile = updated.find(f => f.name === file.name);
+              if (updatedFile) {
+                console.log(`✅ Updated file state: originalSize=${updatedFile.originalSize}, size=${updatedFile.size}, will show: ${updatedFile.originalSize !== updatedFile.size}`);
+              }
+              return updated;
+            });
+          } else {
+            console.warn(`⚠️ Compression update skipped for ${file.name}: compressedBytes=${compressedBytes}, originalFileSize=${originalFileSize}, compressedBytes < originalFileSize=${compressedBytes < (originalFileSize || 0)}`);
+          }
         } catch (error) {
           console.warn(`Failed to convert ${isVideoFile(file.file) ? 'video frame' : 'image'} to base64 for ${file.name}:`, error);
           // For videos, continue without imageData (fallback to filename-based)

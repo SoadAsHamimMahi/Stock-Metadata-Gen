@@ -2,7 +2,7 @@
 // These functions work entirely in the browser without server-side dependencies
 
 const MAX_DIMENSION = 2048; // Max width or height for compression
-const QUALITY = 0.85; // JPEG/WebP quality (0-1)
+const QUALITY = 0.5; // JPEG/WebP quality (0-1), stronger compression to reduce size
 const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB
 
 /**

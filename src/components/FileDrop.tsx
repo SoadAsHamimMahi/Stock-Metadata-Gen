@@ -11,7 +11,10 @@ import {
   revokePreviewUrl, 
   getFileExtension, 
   validateFileSize,
-  isImageFile 
+  isImageFile,
+  isVideoFile,
+  compressImageClient,
+  extractVideoFrame
 } from '@/lib/client-file-util';
 import RetryIndicator from '@/components/RetryIndicator';
 import { useGuardedAction } from '@/hooks/useGuardedAction';
@@ -78,8 +81,17 @@ export default function FileDrop({
   const inputRef = useRef<HTMLInputElement>(null);
   const { executeGuarded, loginModalOpen, setLoginModalOpen, reason, handleLoginSuccess } = useGuardedAction();
 
-  const totalSize = useMemo(() => {
+  // Total sizes: original (what user uploaded) vs compressed (what is sent to AI)
+  const totalCompressedSize = useMemo(() => {
     return files.reduce((sum, f) => sum + f.size, 0);
+  }, [files]);
+
+  const totalOriginalSize = useMemo(() => {
+    return files.reduce((sum, f) => sum + (f.originalSize ?? f.size), 0);
+  }, [files]);
+
+  const anyCompressed = useMemo(() => {
+    return files.some(f => f.originalSize && f.originalSize !== f.size);
   }, [files]);
 
   const formatSize = (bytes: number) => {
@@ -192,12 +204,47 @@ export default function FileDrop({
         // Create preview URL
         const previewUrl = getFilePreviewUrl(file);
         
-        // Create UploadItem with File object
+        // Compress image/video immediately on upload and calculate compressed size
+        let compressedSize = file.size;
+        const originalSize = file.size;
+        
+        if (isImageFile(file) || isVideoFile(file)) {
+          try {
+            // For images: compress and get the compressed file size
+            if (isImageFile(file)) {
+              const compressedFile = await compressImageClient(file, {
+                maxWidth: 2048,
+                maxHeight: 2048,
+                quality: 0.5,
+                format: 'jpeg'
+              });
+              compressedSize = compressedFile.size;
+              console.log(`📊 Upload compression for ${file.name}: Original=${originalSize} bytes, Compressed=${compressedSize} bytes (${((1 - compressedSize / originalSize) * 100).toFixed(1)}% reduction)`);
+            } 
+            // For videos: extract frame and estimate size (frame is already compressed)
+            else if (isVideoFile(file)) {
+              const frameData = await extractVideoFrame(file);
+              // Estimate size from base64 data URL
+              const commaIndex = frameData.indexOf(',');
+              if (commaIndex !== -1) {
+                const base64 = frameData.slice(commaIndex + 1);
+                const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+                compressedSize = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+                console.log(`📊 Upload compression for ${file.name} (video frame): Original=${originalSize} bytes, Compressed frame=${compressedSize} bytes (${((1 - compressedSize / originalSize) * 100).toFixed(1)}% reduction)`);
+              }
+            }
+          } catch (error) {
+            console.warn(`Compression failed for ${file.name}, using original size:`, error);
+            compressedSize = originalSize;
+          }
+        }
+        
+        // Create UploadItem with File object and compressed size
         const uploadItem: UploadItem = {
           name: file.name,
           url: previewUrl,
-          size: file.size,
-          originalSize: file.size, // Will be updated if compression happens later
+          size: compressedSize, // Compressed size (what will be sent to AI)
+          originalSize: originalSize, // Original file size
           type: file.type,
           ext: ext,
           file: file // Store the File object
@@ -290,7 +337,32 @@ export default function FileDrop({
       )}
       {files.length > 0 && (
         <div className="mb-4 text-sm text-text-secondary p-3 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
-          <span className="font-bold text-green-bright">{files.length}</span> file{files.length !== 1 ? 's' : ''} uploaded | Total: <span className="font-semibold">{formatSize(totalSize)}</span>
+          <span className="font-bold text-green-bright">{files.length}</span>{' '}
+          file{files.length !== 1 ? 's' : ''} uploaded |{' '}
+          {anyCompressed ? (
+            <>
+              Original total:{' '}
+              <span className="font-semibold line-through text-text-tertiary/60">
+                {formatSize(totalOriginalSize)}
+              </span>
+              {' → '}
+              <span className="font-semibold text-green-bright">
+                {formatSize(totalCompressedSize)}
+              </span>
+              {totalOriginalSize > 0 && (
+                <span className="ml-1 text-green-400">
+                  ({Math.round((1 - totalCompressedSize / totalOriginalSize) * 100)}% smaller)
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              Total:{' '}
+              <span className="font-semibold">
+                {formatSize(totalOriginalSize)}
+              </span>
+            </>
+          )}
         </div>
       )}
 
@@ -683,7 +755,7 @@ function FileCard({
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-text-primary truncate">{file.name}</div>
               <div className="text-xs text-text-tertiary">
-                {file.originalSize && file.originalSize !== file.size ? (
+                {file.originalSize && file.originalSize > 0 && file.size > 0 && file.originalSize !== file.size ? (
                   <>
                     <span className="line-through text-text-tertiary/50">
                       {formatSize(file.originalSize)}

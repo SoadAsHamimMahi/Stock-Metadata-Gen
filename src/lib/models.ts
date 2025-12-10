@@ -124,10 +124,12 @@ FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or 
 10. Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
 Order keywords by importance: most important first, title words included.` : '';
   
-  const titleLengthLimit = titleLen;
+  // Enforce a hard minimum length for titles to avoid very short, low-information titles
+  const titleLengthLimit = Math.min(Math.max(titleLen, 55), 200);
+  const minTitleChars = 55;
   
   const generalTitleGuidance = platform !== 'adobe' ? `
-Titles should be concise and natural. Aim to stay within ${titleLengthLimit} characters when possible, but shorter is fine if the subject is simple.
+Titles should be concise and natural while still meeting the minimum length.
 The title must be complete and not cut off mid-sentence.
 ` : '';
   
@@ -154,8 +156,8 @@ Examples of GOOD titles:
   return `
 Return PURE JSON only: {"title": string, "description": string, "keywords": string[]}.
 ${imageInstructions}
-Title: MUST be COMPLETE. Aim to stay within ${titleLengthLimit} characters (max 200).
-Titles should be concise and natural. Aim for around 50–90 characters when possible, but shorter is fine if the subject is simple.
+Title: MUST be COMPLETE and between ${minTitleChars} and ${titleLengthLimit} characters (hard requirement).
+NEVER return a title shorter than ${minTitleChars} characters. If your draft title is shorter, expand it with more specific, concrete detail until it reaches at least ${minTitleChars} characters without adding meaningless filler.
 CRITICAL:
 - NEVER copy or paraphrase the filename, or include file types or generic words such as "copy", "final", "jpeg", "jpg", "png", "webp".
 - NEVER include ANY words, numbers, IDs, hashes, or codes from the filename in the title (e.g., if filename contains "Whisk_2cf81f816ae2", do NOT use "whisk" or "2cf81f816ae2" in the title).
@@ -718,7 +720,7 @@ const groqLastCallTimes = new Map<string, number>();
 // - Additional delay between retries when errors occur
 const GROQ_COOLDOWN_MS = 12000;     // 12 seconds between generations per key
 const GROQ_MAX_RETRIES = 3;         // 3 additional attempts after the first try
-const GROQ_RETRY_DELAY_MS = 5000;   // 5 seconds between retries
+const GROQ_RETRY_DELAY_MS = 14000;  // 14 seconds between retries
 
 export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
   // Use bearer token if provided and not empty, otherwise fall back to environment variable
