@@ -21,6 +21,8 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
   }, [value.model.provider]);
 
   // On first load, determine if Parallel Mode can be used based on stored keys
+  // Helper to recompute whether Parallel Mode can be enabled based on ALL providers.
+  // Logic: if there are at least 2 usable keys total (Gemini + Groq + Mistral), enable it.
   useEffect(() => {
     (async () => {
       try {
@@ -39,8 +41,8 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
         const mistralCount = MISTRAL_ENABLED ? countUsable(enc.mistralKeys) : 0;
         const groqCount = countUsable(enc.groqKeys);
 
-        // Enable Parallel Mode if ANY provider already has 2+ usable keys
-        setCanUseParallel(geminiCount >= 2 || mistralCount >= 2 || groqCount >= 2);
+        const totalUsable = geminiCount + mistralCount + groqCount;
+        setCanUseParallel(totalUsable >= 2);
       } catch (err) {
         console.error('Failed to initialize Parallel Mode availability:', err);
         setCanUseParallel(false);
@@ -85,8 +87,6 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
     }
     setActiveProvider(provider);
     setNested('model', 'provider', provider);
-    // Reset until KeyModal reports fresh counts
-    setCanUseParallel(false);
   };
   
   // Force provider to Gemini if Mistral is disabled and currently selected
@@ -270,9 +270,33 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
         open={keyModalOpen}
         onOpenChange={setKeyModalOpen}
         onKeysChanged={(provider, usableCount) => {
-          // Enable Parallel Mode whenever ANY provider has 2+ usable keys.
-          // This keeps the UX simple and avoids mismatch between modal provider and form provider.
-          setCanUseParallel(usableCount >= 2);
+          // Recompute Parallel Mode availability using ALL providers,
+          // so combinations like 1 Gemini key + 1 Groq key still enable it.
+          (async () => {
+            try {
+              const enc = await getDecryptedJSON<any>('smg_keys_enc', null as any);
+              if (!enc) {
+                setCanUseParallel(false);
+                return;
+              }
+
+              const countUsable = (keys: any[] = []) =>
+                keys.filter(
+                  (k) =>
+                    k && k.key && k.key.trim().length > 0 && k.enabledForParallel !== false
+                ).length;
+
+              const geminiCount = countUsable(enc.geminiKeys);
+              const mistralCount = MISTRAL_ENABLED ? countUsable(enc.mistralKeys) : 0;
+              const groqCount = countUsable(enc.groqKeys);
+
+              const totalUsable = geminiCount + mistralCount + groqCount;
+              setCanUseParallel(totalUsable >= 2);
+            } catch (error) {
+              console.error('Failed to recompute Parallel Mode availability:', error);
+              setCanUseParallel(false);
+            }
+          })();
         }}
         onModelChanged={(provider, model) => {
           console.log(`🔄 APIControls: onModelChanged called with ${provider} -> ${model}`);
