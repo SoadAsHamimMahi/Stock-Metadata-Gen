@@ -80,7 +80,6 @@ export default function FileDrop({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing'>('uploading');
-  const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { executeGuarded, loginModalOpen, setLoginModalOpen, reason, handleLoginSuccess } = useGuardedAction();
 
@@ -531,14 +530,6 @@ export default function FileDrop({
               onUpdate={onRowsUpdate}
             />
           )}
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept=".png,.jpg,.jpeg,.webp,.svg,.eps,.ai,.mp4,.mov,.m4v,.webm"
-            onChange={onPick}
-            className="hidden"
-          />
           </div>
           {showTransparentPngHint && (
             <div className="text-xs text-amber-100 bg-amber-500/10 border border-amber-400/40 rounded-md px-3 py-2 flex items-start gap-2">

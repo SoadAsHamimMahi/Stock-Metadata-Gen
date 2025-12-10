@@ -689,8 +689,11 @@ export async function generateWithMistral(a: ModelArgs): Promise<ModelOut> {
     throw new Error('MISTRAL_API_KEY missing. Please provide an API key via Authorization header or set MISTRAL_API_KEY environment variable.');
   }
 
+  // Respect the selected Mistral model when provided; fall back to small latest.
+  const modelName = a.mistralModel || 'mistral-small-latest';
+
   const body = {
-    model: 'mistral-small-latest',
+    model: modelName,
     temperature: 0.7,
     messages: [
       { role: 'system', content: 'Respond with PURE JSON only: {"title": string, "description": string, "keywords": string[]}' },
@@ -755,14 +758,14 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
     }
   }
 
-  // Normalize incoming Groq model to the supported set. If an unknown/old
-  // model is provided, fall back to Maverick.
+  // Normalize incoming Groq model to the supported set.
+  // Default to Scout; treat Maverick as legacy-only.
   const effectiveModel =
-    requestedGroqModel === MAVERICK_MODEL || !requestedGroqModel
-      ? MAVERICK_MODEL
-      : requestedGroqModel === SCOUT_MODEL
+    requestedGroqModel === SCOUT_MODEL || !requestedGroqModel
       ? SCOUT_MODEL
-      : MAVERICK_MODEL;
+      : requestedGroqModel === MAVERICK_MODEL
+      ? MAVERICK_MODEL
+      : SCOUT_MODEL;
 
   // Use the same model for both text-only and vision to keep behavior consistent.
   const modelName = effectiveModel;

@@ -245,18 +245,8 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
                   >
                     <span>⚠️</span>
                     <span>
-                      {value.model.provider === 'groq' ? (
-                        <>
-                          Add at least <strong>2 Groq API keys</strong> (ideally from{" "}
-                          <strong>different Gmail / Groq accounts</strong>) in{" "}
-                          <strong>API Secrets</strong> to use Groq Parallel Mode effectively.
-                        </>
-                      ) : (
-                        <>
-                          Add at least <strong>2 API keys</strong> for{" "}
-                          <strong>Gemini</strong> in <strong>API Secrets</strong> to enable Parallel Mode.
-                        </>
-                      )}
+                      Add at least <strong>2 API keys</strong> in{' '}
+                      <strong>API Secrets</strong> (Gemini and/or Groq) to enable Parallel Mode.
                     </span>
                   </button>
                 )}
