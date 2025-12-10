@@ -30,7 +30,7 @@ const MISTRAL_MODELS: Array<{ value: MistralModel; label: string; quota: string 
 ];
 
 const GROQ_MODELS: Array<{ value: GroqModel; label: string; quota: string }> = [
-  { value: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B (multimodal)', quota: 'Free/preview tier (check Groq docs)' }
+  { value: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B (multimodal, queued)', quota: 'Free/preview tier (check Groq docs)' }
 ];
 
 export default function KeyModal({
@@ -61,7 +61,7 @@ export default function KeyModal({
   const [newKeyTestResult, setNewKeyTestResult] = useState<{ success: boolean; message?: string } | null>(null);
   const [geminiModel, setGeminiModel] = useState<GeminiModel>('gemini-2.5-flash');
   const [mistralModel, setMistralModel] = useState<MistralModel>('mistral-small-latest');
-  const [groqModel, setGroqModel] = useState<GroqModel>('meta-llama/llama-4-maverick-17b-128e-instruct');
+  const [groqModel, setGroqModel] = useState<GroqModel>('meta-llama/llama-4-scout-17b-16e-instruct');
   const [savingModel, setSavingModel] = useState(false);
   const [modelSaved, setModelSaved] = useState(false);
 
@@ -113,13 +113,13 @@ export default function KeyModal({
           setMistralModel(v.mistralModel);
         }
         if (v.groqModel) {
-          // If an old Groq model was stored (e.g., llama-3.3-70b-versatile),
-          // normalize it to the current supported model.
-          const normalizedGroqModel =
-            v.groqModel === 'meta-llama/llama-4-maverick-17b-128e-instruct'
-              ? v.groqModel
-              : 'meta-llama/llama-4-maverick-17b-128e-instruct';
-          setGroqModel(normalizedGroqModel as GroqModel);
+          // If an old Groq model was stored (e.g., Maverick or something legacy),
+          // normalize everything to the single supported UI model: Scout.
+          const normalizedGroqModel: GroqModel =
+            v.groqModel === 'meta-llama/llama-4-scout-17b-16e-instruct'
+              ? 'meta-llama/llama-4-scout-17b-16e-instruct'
+              : 'meta-llama/llama-4-scout-17b-16e-instruct';
+          setGroqModel(normalizedGroqModel);
         }
 
         const initialKeys = provider === 'gemini' ? normGemini : provider === 'groq' ? normGroq : normMistral;

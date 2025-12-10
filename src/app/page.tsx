@@ -65,7 +65,10 @@ export default function Page() {
     model: { provider: 'gemini' as 'gemini' | 'mistral' | 'groq', preview: false },
     geminiModel: 'gemini-2.5-flash' as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite' | undefined,
     mistralModel: undefined as 'mistral-small-latest' | 'mistral-medium-latest' | 'mistral-large-latest' | undefined,
-    groqModel: undefined as 'meta-llama/llama-4-maverick-17b-128e-instruct' | undefined,
+    groqModel: undefined as
+      | 'meta-llama/llama-4-maverick-17b-128e-instruct'
+      | 'meta-llama/llama-4-scout-17b-16e-instruct'
+      | undefined,
     titleLen: 70, // Adobe Stock requirement: 70 chars max
     descLen: 150 as 150,
     keywordCount: 41,
@@ -1059,7 +1062,8 @@ export default function Page() {
         } else if (form.model.provider === 'groq') {
           if (form.groqModel) {
             const modelMap: Record<string, string> = {
-              'meta-llama/llama-4-maverick-17b-128e-instruct': 'Llama 4 Maverick 17B'
+              'meta-llama/llama-4-maverick-17b-128e-instruct': 'Llama 4 Maverick 17B',
+              'meta-llama/llama-4-scout-17b-16e-instruct': 'Llama 4 Scout 17B'
             };
             modelName = modelMap[form.groqModel] || 'Groq';
           } else {

@@ -715,10 +715,10 @@ export async function generateWithMistral(a: ModelArgs): Promise<ModelOut> {
 // multiple Groq keys (e.g., from different accounts/orgs)
 // can be used in parallel without blocking each other.
 const groqLastCallTimes = new Map<string, number>();
-// Be conservative with Groq to avoid TPM rate limits for each key:
-// - Cooldown between generations per key
-// - Additional delay between retries when errors occur
-const GROQ_COOLDOWN_MS = 12000;     // 12 seconds between generations per key
+// Be conservative with Groq to avoid TPM rate limits for each key, but only
+// for the Maverick model. The Scout model is handled via small per-key queues
+// on the client side and should NOT be artificially delayed here.
+const GROQ_COOLDOWN_MS = 12000;     // 12 seconds between generations per key (Maverick only)
 const GROQ_MAX_RETRIES = 3;         // 3 additional attempts after the first try
 const GROQ_RETRY_DELAY_MS = 14000;  // 14 seconds between retries
 
@@ -731,28 +731,41 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
 
   const keyId = key.trim();
 
+  // Supported Groq models
+  const MAVERICK_MODEL = 'meta-llama/llama-4-maverick-17b-128e-instruct';
+  const SCOUT_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+  const requestedGroqModel = a.groqModel;
+  const isScoutModel = requestedGroqModel === SCOUT_MODEL;
+
   const hasImage = !!(a.imageData || a.imageUrl);
 
-  // Respect a per-key cooldown between Groq generations to avoid TPM bursts
-  const lastTime = groqLastCallTimes.get(keyId);
-  if (lastTime && lastTime > 0) {
-    const elapsed = Date.now() - lastTime;
-    if (elapsed < GROQ_COOLDOWN_MS) {
-      const wait = GROQ_COOLDOWN_MS - elapsed;
-      console.log(`⏳ Groq cooldown for key ${keyId.substring(0, 8)}...: waiting ${wait}ms before next generation`);
-      await new Promise(resolve => setTimeout(resolve, wait));
+  // Respect a per-key cooldown between Groq generations to avoid TPM bursts,
+  // but ONLY for the Maverick model. Scout uses a simple per-key queue on the
+  // client side (one image at a time) and should not be throttled here.
+  if (!isScoutModel) {
+    const lastTime = groqLastCallTimes.get(keyId);
+    if (lastTime && lastTime > 0) {
+      const elapsed = Date.now() - lastTime;
+      if (elapsed < GROQ_COOLDOWN_MS) {
+        const wait = GROQ_COOLDOWN_MS - elapsed;
+        console.log(`⏳ Groq cooldown for key ${keyId.substring(0, 8)}...: waiting ${wait}ms before next generation`);
+        await new Promise(resolve => setTimeout(resolve, wait));
+      }
     }
   }
 
-  // Only one Groq model is currently supported and it is multimodal (text + vision).
-  // If the caller passes a different/old model, normalize to Maverick.
-  const visionModel = 'meta-llama/llama-4-maverick-17b-128e-instruct';
-  const textModel = a.groqModel === visionModel || !a.groqModel
-    ? visionModel
-    : visionModel;
+  // Normalize incoming Groq model to the supported set. If an unknown/old
+  // model is provided, fall back to Maverick.
+  const effectiveModel =
+    requestedGroqModel === MAVERICK_MODEL || !requestedGroqModel
+      ? MAVERICK_MODEL
+      : requestedGroqModel === SCOUT_MODEL
+      ? SCOUT_MODEL
+      : MAVERICK_MODEL;
 
   // Use the same model for both text-only and vision to keep behavior consistent.
-  const modelName = hasImage ? visionModel : textModel;
+  const modelName = effectiveModel;
   
   const prompt = buildUserPrompt(a);
   
@@ -843,7 +856,9 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
         }
 
         // Non-retryable error or out of retries: return structured error/fallback
-        groqLastCallTimes.set(keyId, Date.now());
+        if (!isScoutModel) {
+          groqLastCallTimes.set(keyId, Date.now());
+        }
         if (a.imageData) {
           return { 
             title: '', 
@@ -873,11 +888,15 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
             };
           }
         }
-        groqLastCallTimes.set(keyId, Date.now());
+        if (!isScoutModel) {
+          groqLastCallTimes.set(keyId, Date.now());
+        }
         return parsed;
       } catch (parseError: any) {
         console.error('❌ JSON parse error:', parseError?.message);
-        groqLastCallTimes.set(keyId, Date.now());
+        if (!isScoutModel) {
+          groqLastCallTimes.set(keyId, Date.now());
+        }
         if (a.imageData) {
           return { 
             title: '', 
@@ -917,7 +936,9 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
   }
 
   // If we reach here, all retries have failed
-  groqLastCallTimes.set(keyId, Date.now());
+  if (!isScoutModel) {
+    groqLastCallTimes.set(keyId, Date.now());
+  }
   const finalMessage = `Groq API request failed after ${GROQ_MAX_RETRIES + 1} attempt(s): ${lastError?.message || 'Unknown error'}`;
   console.error(finalMessage);
 

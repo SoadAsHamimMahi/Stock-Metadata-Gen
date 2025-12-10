@@ -174,14 +174,17 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
           </div>
           
           {/* Model Selection Confirmation */}
-          {value.model.provider === 'groq' && value.groqModel && (
+          {value.model.provider === 'groq' && (
             <div className="mt-3 p-3 bg-green-accent/10 border border-green-accent/30 rounded-lg">
               <div className="flex items-center gap-2">
                 <span className="text-green-bright text-lg">✓</span>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-white">Active Model:</div>
                   <div className="text-base font-bold text-green-bright mt-0.5">
-                    Llama 4 Maverick 17B
+                    {/* UI only exposes Scout; fall back to a generic label if something else is stored */}
+                    {value.groqModel === 'meta-llama/llama-4-scout-17b-16e-instruct'
+                      ? 'Llama 4 Scout 17B'
+                      : 'Groq (legacy model)'}
                   </div>
                 </div>
               </div>

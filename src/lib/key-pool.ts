@@ -64,9 +64,13 @@ class KeyPoolManager {
       const model = provider === 'gemini' 
         ? (enc?.geminiModel || 'gemini-2.5-flash')
         : provider === 'groq'
-        ? (enc?.groqModel === 'meta-llama/llama-4-maverick-17b-128e-instruct'
-            ? enc.groqModel
-            : 'meta-llama/llama-4-maverick-17b-128e-instruct')
+        ? (() => {
+            // UI only exposes the Scout model now; normalize anything else to Scout
+            const stored = enc?.groqModel;
+            return stored === 'meta-llama/llama-4-scout-17b-16e-instruct'
+              ? stored
+              : 'meta-llama/llama-4-scout-17b-16e-instruct';
+          })()
         : (enc?.mistralModel || 'mistral-small-latest');
 
       // Shuffle keys to distribute load evenly (not always same order)
