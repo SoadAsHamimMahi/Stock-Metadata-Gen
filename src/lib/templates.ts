@@ -88,7 +88,7 @@ export function createDefaultTemplates(): Template[] {
         titleLen: 70,
         descLen: 150,
         keywordMode: 'fixed',
-        keywordCount: 41,
+        keywordCount: 30,
         assetType: 'auto',
         prefix: '',
         suffix: '',

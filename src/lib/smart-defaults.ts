@@ -39,7 +39,7 @@ export function getSmartDefaults(
   if (platform === 'adobe') {
     defaults.titleLen = 70;
     defaults.keywordMode = 'fixed';
-    defaults.keywordCount = 41;
+    defaults.keywordCount = 30;
     defaults.model = { provider: 'gemini', preview: false };
   } else if (platform === 'shutterstock') {
     defaults.titleLen = 120;
@@ -75,7 +75,7 @@ export function getOptimalSettings(
   const suggestions: Record<string, Partial<FormState>> = {
     'adobe-photo': {
       titleLen: 70,
-      keywordCount: 41,
+      keywordCount: 30,
       model: { provider: 'gemini', preview: false }
     },
     'adobe-vector': {

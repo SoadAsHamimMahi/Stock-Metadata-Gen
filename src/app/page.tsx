@@ -72,7 +72,7 @@ export default function Page() {
     titleLen: 70, // Adobe Stock requirement: 70 chars max
     descLen: 150 as 150,
     keywordMode: 'fixed' as 'auto' | 'fixed',
-    keywordCount: 41,
+    keywordCount: 30,
     assetType: 'auto' as 'auto' | 'photo' | 'illustration' | 'vector' | '3d' | 'icon' | 'video',
     prefix: '',
     suffix: '',
