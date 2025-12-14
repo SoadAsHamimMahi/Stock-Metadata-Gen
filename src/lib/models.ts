@@ -139,7 +139,7 @@ Order keywords by importance: most important first, title words included.` : '';
   
   // Enforce a hard minimum length for titles to avoid very short, low-information titles
   const titleLengthLimit = Math.min(Math.max(titleLen, 55), 200);
-  const minTitleChars = 55;
+  const minTitleChars = 60;
   
   const generalTitleGuidance = platform !== 'adobe' ? `
 Titles should be concise and natural while still meeting the minimum length.

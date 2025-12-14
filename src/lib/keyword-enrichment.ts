@@ -113,19 +113,8 @@ export function enrichKeywords(
   }
   
   // Platform-specific enrichment
-  if (platform === 'adobe') {
-    // For Adobe, ensure we have conceptual keywords
-    const conceptualTerms = ['commercial', 'business', 'marketing', 'advertising', 'design'];
-    for (const term of conceptualTerms) {
-      if (!existing.has(term) && enriched.length < 60 && keywords.length > 0) {
-        // Only add if we have substantial keywords
-        if (keywords.length >= 10) {
-          enriched.push(term);
-          existing.add(term);
-        }
-      }
-    }
-  }
+  // NOTE: We intentionally do NOT inject generic "conceptual" keywords (e.g., commercial/marketing)
+  // because they reduce precision and can look spammy. Keywords should reflect visible content.
   
   return enriched;
 }

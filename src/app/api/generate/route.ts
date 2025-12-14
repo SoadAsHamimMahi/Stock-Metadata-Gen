@@ -397,6 +397,28 @@ export async function POST(req: NextRequest) {
         console.log(`ℹ Skipping image load for ${f.name} (not a supported image/video file: ${ext})`);
       }
 
+      // If this looks like an image/video/vector asset but we don't have imageData,
+      // do NOT fall back to filename-based generation. Return an error instead.
+      // The goal is to ensure metadata comes from visual analysis only.
+      const expectsVisualAnalysis =
+        imageExts.includes(ext) ||
+        videoExts.includes(ext) ||
+        ['svg', 'eps', 'ai'].includes(ext);
+
+      if (expectsVisualAnalysis && !imageData) {
+        rows.push({
+          filename: f.name,
+          platform: a.platform === 'adobe' ? 'Adobe Stock' : a.platform === 'general' ? 'General' : 'Shutterstock',
+          title: '[ERROR] Image analysis failed: No image data available for visual analysis.',
+          description: 'No preview image was available for the AI to analyze. Please re-upload, or provide a supported preview/format.',
+          keywords: [],
+          assetType: effType,
+          extension: ext,
+          error: 'Image analysis failed: Missing imageData'
+        });
+        return;
+      }
+
       const args: ModelArgs = {
         platform: a.platform,
         titleLen: a.titleLen,
