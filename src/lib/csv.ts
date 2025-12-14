@@ -68,7 +68,8 @@ export function toCSV(
       r.extension,
       titleLen,
       descLen,
-      kwCount
+      // Use actual row keyword count (supports Auto keyword mode)
+      r.keywords?.length ?? kwCount
     ].join(',')
   );
 

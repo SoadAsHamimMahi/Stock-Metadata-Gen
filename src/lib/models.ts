@@ -7,6 +7,7 @@ export type ModelArgs = {
   platform: 'general' | 'adobe' | 'shutterstock';
   titleLen: number;
   descLen: number;           // usually 150
+  keywordMode?: 'auto' | 'fixed';
   keywordCount: number;
   assetType: 'photo'|'illustration'|'vector'|'3d'|'icon'|'video';
   filename: string;
@@ -66,9 +67,21 @@ const ASSET_TIPS = {
   video: 'Subject + action + setting; only TRUE tech tags if provided (e.g., 4k, 60fps, timelapse).'
 } as const;
 
-function rules(keywordCount: number, titleLen: number, hasImage: boolean = false, platform?: 'general' | 'adobe' | 'shutterstock', isVideo?: boolean) {
-  // Clamp keyword count to a safe range (15-35) to avoid weak filler keywords
-  const safeKeywordCount = Math.max(15, Math.min(keywordCount, 35));
+function rules(
+  keywordMode: 'auto' | 'fixed' | undefined,
+  keywordCount: number,
+  titleLen: number,
+  hasImage: boolean = false,
+  platform?: 'general' | 'adobe' | 'shutterstock',
+  isVideo?: boolean
+) {
+  // Keyword target:
+  // - auto: encourage a tight, high-precision set (typically 20–35)
+  // - fixed: respect the user-selected count (up to 49)
+  const safeKeywordCount =
+    keywordMode === 'auto'
+      ? Math.max(15, Math.min(keywordCount, 35))
+      : Math.max(5, Math.min(keywordCount, 49));
   
   const imageInstructions = hasImage ? `
 CRITICAL: An image is provided. You MUST:
@@ -173,7 +186,12 @@ ${adobeTitleGuidance}
 ${fewShotExamples}
 Description: ≤150 chars, 1 sentence, subject + style/setting/use-case; no brand/celebrity/release claims.
 NOTE: Titles and keywords are PRIMARY for search visibility. Description is supporting context.
-Keywords: Use up to ${safeKeywordCount} highly relevant keywords. Ideal range: 20–35. Never add weak or generic filler just to reach the maximum.
+Keywords:
+- NEVER include stopwords as keywords (e.g., "and", "with", "out", "the", "a", "an", "of", "on", "at", "to", "for", "from", "in", "into").
+- NEVER add unrelated filler keywords (e.g., seasonal/home/gift words) just to reach a count.
+${keywordMode === 'auto'
+  ? `- Choose the BEST number of keywords for this asset (typically 20–35). Return a smaller list if that improves precision.`
+  : `- Return EXACTLY ${safeKeywordCount} keywords. If you have fewer than ${safeKeywordCount} strong keywords, add more by using: (a) synonyms, (b) higher/lower specificity terms, (c) related concepts that are clearly supported by the image.`}
 CRITICAL: NEVER include ANY words, numbers, IDs, hashes, codes, or alphanumeric strings from the filename in keywords. Base keywords ONLY on what is visible in the image or described in the title.
 Order keywords by importance (MOST CRITICAL for Adobe Stock search visibility).
 ${adobeKeywordGuidance}
@@ -252,7 +270,7 @@ This override takes precedence over everything else in this prompt (except filen
   const shouldUseFilenameHints = !hasImage;
   
   return `
-${filenameRestriction}${mandatoryOverride}${rules(a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
+${filenameRestriction}${mandatoryOverride}${rules(a.keywordMode, a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
 Platform: ${a.platform} (${PLATFORM_TIPS[a.platform]}).
 Asset: ${a.assetType} (${ASSET_TIPS[a.assetType]}); ext: ${a.extension}.
 ${filenameRule ? `${filenameRule}\n` : ''}${fileAttributesText}${hasImage ? `${imageContext}

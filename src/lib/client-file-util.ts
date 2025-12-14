@@ -166,9 +166,10 @@ export function isVectorFile(file: File): boolean {
 }
 
 /**
- * Extract middle frame from video and convert to base64 image
- * @param file - The video File object
- * @returns Base64-encoded image data URL
+ * Extract three representative frames (start, middle, end) from a video and
+ * combine them into a single vertical strip image.
+ *
+ * Returns a base64-encoded JPEG data URL (e.g., "data:image/jpeg;base64,...").
  */
 export async function extractVideoFrame(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -186,55 +187,105 @@ export async function extractVideoFrame(file: File): Promise<string> {
     video.playsInline = true;
 
     video.onloadedmetadata = () => {
-      // Seek to middle of video
-      video.currentTime = video.duration / 2;
-    };
-
-    video.onseeked = () => {
       try {
-        // Set canvas dimensions to video dimensions (with max size limit)
-        const maxDimension = MAX_DIMENSION;
-        let width = video.videoWidth;
-        let height = video.videoHeight;
+        const duration = video.duration;
 
-        // Resize if needed to fit within max dimension
-        if (width > maxDimension || height > maxDimension) {
-          const ratio = Math.min(maxDimension / width, maxDimension / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
+        // Decide timestamps to capture (in seconds)
+        const times: number[] = [];
+        if (!isFinite(duration) || duration <= 0) {
+          // Fallback: just grab a single frame at t=0
+          times.push(0);
+        } else {
+          times.push(0); // first frame
+          times.push(duration / 2); // middle frame
+          times.push(Math.max(duration - 0.1, 0)); // last-ish frame
         }
 
-        canvas.width = width;
-        canvas.height = height;
+        const frameCount = times.length;
 
-        // Draw video frame to canvas
-        ctx.drawImage(video, 0, 0, width, height);
+        // Determine target size for each frame so whole strip fits within MAX_DIMENSION
+        let frameWidth = video.videoWidth;
+        let frameHeight = video.videoHeight;
 
-        // Convert canvas to blob, then to base64
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('Failed to extract video frame'));
-              return;
-            }
+        const maxStripHeight = MAX_DIMENSION;
+        const maxSingleHeight = maxStripHeight / frameCount;
 
-            // Convert blob to base64
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result as string;
-              // Clean up
-              URL.revokeObjectURL(video.src);
-              resolve(result);
-            };
-            reader.onerror = () => {
-              URL.revokeObjectURL(video.src);
-              reject(new Error('Failed to convert frame to base64'));
-            };
-            reader.readAsDataURL(blob);
-          },
-          'image/jpeg',
-          QUALITY
-        );
+        if (frameWidth > MAX_DIMENSION || frameHeight > maxSingleHeight) {
+          const ratio = Math.min(MAX_DIMENSION / frameWidth, maxSingleHeight / frameHeight);
+          frameWidth = Math.round(frameWidth * ratio);
+          frameHeight = Math.round(frameHeight * ratio);
+        }
+
+        canvas.width = frameWidth;
+        canvas.height = frameHeight * frameCount;
+
+        let index = 0;
+
+        const finish = () => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                URL.revokeObjectURL(video.src);
+                reject(new Error('Failed to extract video frames'));
+                return;
+              }
+
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result as string;
+                URL.revokeObjectURL(video.src);
+                resolve(result);
+              };
+              reader.onerror = () => {
+                URL.revokeObjectURL(video.src);
+                reject(new Error('Failed to convert combined frames to base64'));
+              };
+              reader.readAsDataURL(blob);
+            },
+            'image/jpeg',
+            QUALITY
+          );
+        };
+
+        const drawCurrentFrame = () => {
+          try {
+            const destY = frameHeight * index;
+            ctx.drawImage(
+              video,
+              0,
+              0,
+              video.videoWidth,
+              video.videoHeight,
+              0,
+              destY,
+              frameWidth,
+              frameHeight
+            );
+          } catch (err) {
+            console.warn('Failed to draw video frame, continuing:', err);
+          }
+          index += 1;
+          seekToNext();
+        };
+
+        const seekToNext = () => {
+          if (index >= times.length) {
+            finish();
+            return;
+          }
+          try {
+            video.currentTime = times[index];
+          } catch (err) {
+            console.warn('Video seek failed, drawing current frame instead:', err);
+            drawCurrentFrame();
+          }
+        };
+
+        video.onseeked = () => {
+          drawCurrentFrame();
+        };
+
+        seekToNext();
       } catch (error: any) {
         URL.revokeObjectURL(video.src);
         reject(new Error(`Frame extraction failed: ${error?.message || 'Unknown error'}`));
@@ -261,7 +312,7 @@ export async function fileToBase64WithCompression(
   file: File,
   compress: boolean = true
 ): Promise<string> {
-  // Handle videos - extract middle frame
+  // Handle videos - extract representative frames and combine into one image
   if (isVideoFile(file)) {
     try {
       const frameData = await extractVideoFrame(file);

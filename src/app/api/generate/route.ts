@@ -5,6 +5,8 @@ import { generateWithGemini, generateWithMistral, generateWithGroq, type ModelAr
 import { filenameHints, truncateByChars, isFilenameBased, scoreTitleQuality, filterFilenameBasedKeywords } from '@/lib/util';
 import { enrichKeywords, addScientificNames } from '@/lib/keyword-enrichment';
 import { GeminiModelEnum, MistralModelEnum, GroqModelEnum } from '@/lib/types';
+import path from 'path';
+import { convertVectorToPng } from '@/lib/vector-convert';
 
 // Infer by extension when assetType='auto'
 const inferAsset = (ext: string) =>
@@ -16,6 +18,7 @@ const Body = z.object({
   platform: z.enum(['general','adobe','shutterstock']),
   titleLen: z.number().min(20).max(200),
   descLen: z.literal(150),
+  keywordMode: z.enum(['auto','fixed']).optional().default('fixed'),
   keywordCount: z.number().min(5).max(49),
   assetType: z.enum(['auto','photo','illustration','vector','3d','icon','video']),
   prefix: z.string().optional(),
@@ -51,6 +54,10 @@ const BAN = new Set([
 ]);
 const MIN_LEN = 3;
 const stemLite = (s: string) => s.replace(/(ing|ers|es|s)$/,'');
+const AUTO_KEYWORD_CAP = 35;
+const STOPWORDS = new Set([
+  'a','an','and','are','as','at','be','by','for','from','in','into','is','it','of','on','or','out','the','to','with'
+]);
 
 // Common brand/IP names to detect
 const COMMON_BRANDS = new Set([
@@ -192,7 +199,7 @@ function validateResponse(
   description: string,
   keywords: string[],
   expectedTitleLen: number,
-  expectedKeywordCount: number,
+  expectedKeywordCount: number | undefined,
   filename: string,
   hasImage: boolean,
   platform: 'general' | 'adobe' | 'shutterstock'
@@ -244,7 +251,7 @@ function validateResponse(
   if (!Array.isArray(keywords)) {
     issues.push('Keywords is not an array');
   } else {
-    if (keywords.length !== expectedKeywordCount) {
+    if (typeof expectedKeywordCount === 'number' && keywords.length !== expectedKeywordCount) {
       issues.push(`Keyword count mismatch: ${keywords.length} (expected ${expectedKeywordCount})`);
     }
     // Check for banned keywords (only gemini/mistral)
@@ -275,7 +282,7 @@ function validateResponse(
   return { valid: issues.length === 0, issues, warnings: warnings.length > 0 ? warnings : undefined };
 }
 
-function normalizeKeywords(input: any, needed: number, seeds: string[], extraBlock: string[] = []) {
+function normalizeKeywords(input: any, needed: number | undefined, seeds: string[], extraBlock: string[] = []) {
   const arr = Array.isArray(input) ? input : [];
   const block = new Set([...BAN, ...extraBlock.map(s => s.toLowerCase())]);
   const seen = new Set<string>();
@@ -286,27 +293,17 @@ function normalizeKeywords(input: any, needed: number, seeds: string[], extraBlo
     if (!k || k.length < MIN_LEN) return;
     if (block.has(k)) return;
     if (!/[a-z]/.test(k)) return;
+    if (STOPWORDS.has(k)) return;
     const stem = stemLite(k);
     if (seen.has(stem)) return;
     seen.add(stem);
     out.push(k);
   };
   
-  for (const k of arr) { push(String(k)); if (out.length >= needed) break; }
-  for (const s of seeds) { if (out.length >= needed) break; push(String(s)); }
-  
-  // Contextual fallbacks instead of generic 'design'
-  const contextual = ['cozy','holiday','winter','seasonal','decor','home','gift','present','pattern','craft','textile','fabric','ornament','plush'];
-  for (const c of contextual) {
-    if (out.length >= needed) break;
-    if (!seen.has(c) && !block.has(c)) {
-      seen.add(c);
-      out.push(c);
-    }
-  }
-  
-  while (out.length < needed) out.push('design');
-  return out.slice(0, needed);
+  const cap = typeof needed === 'number' ? needed : 60;
+  for (const k of arr) { push(String(k)); if (out.length >= cap) break; }
+  for (const s of seeds) { if (out.length >= cap) break; push(String(s)); }
+  return typeof needed === 'number' ? out.slice(0, needed) : out;
 }
 
 export async function POST(req: NextRequest) {
@@ -346,6 +343,7 @@ export async function POST(req: NextRequest) {
       let imageData: string | undefined = f.imageData;
       const imageExts = ['png', 'jpg', 'jpeg', 'webp'];
       const videoExts = ['mp4', 'mov', 'm4v', 'webm'];
+      const vectorExts = ['eps', 'ai'];
       
       if (imageExts.includes(ext)) {
         if (imageData) {
@@ -377,6 +375,24 @@ export async function POST(req: NextRequest) {
         } else {
           console.warn(`⚠ No frame data extracted for ${f.name} - will use filename-based generation`);
         }
+      } else if (vectorExts.includes(ext)) {
+        // Try to convert EPS/AI vector files into PNG previews on the server
+        if (!imageData && f.url) {
+          try {
+            // Assuming f.url looks like "/uploads/filename.eps"
+            const relPath = f.url.replace(/^\/+/, ''); // strip leading slash
+            const absPath = path.join(process.cwd(), 'public', relPath);
+
+            const pngBuffer = await convertVectorToPng(absPath);
+            const base64 = pngBuffer.toString('base64');
+            imageData = `data:image/png;base64,${base64}`;
+
+            const kb = Math.round(pngBuffer.length / 1024);
+            console.log(`✓ Vector preview generated for ${f.name} (${kb}KB PNG with alpha)`);
+          } catch (err) {
+            console.warn(`⚠ Failed to convert vector ${f.name} to PNG preview:`, err);
+          }
+        }
       } else {
         console.log(`ℹ Skipping image load for ${f.name} (not a supported image/video file: ${ext})`);
       }
@@ -385,7 +401,8 @@ export async function POST(req: NextRequest) {
         platform: a.platform,
         titleLen: a.titleLen,
         descLen: a.descLen,
-        keywordCount: a.keywordCount,
+        keywordMode: a.keywordMode,
+        keywordCount: a.keywordMode === 'fixed' ? a.keywordCount : 35,
         assetType: effType as any,
         filename: f.name,
         extension: ext,
@@ -726,7 +743,7 @@ export async function POST(req: NextRequest) {
       const titleWords = title.toLowerCase()
         .replace(/[^\w\s]/g, ' ')
         .split(/\s+/)
-        .filter(w => w.length >= MIN_LEN && !BAN.has(w));
+        .filter(w => w.length >= MIN_LEN && !BAN.has(w) && !STOPWORDS.has(w));
       
       // Auto-fix combined phrases in keywords (Adobe-specific)
       let rawKeywords = Array.isArray(out.keywords) ? out.keywords : [];
@@ -756,7 +773,9 @@ export async function POST(req: NextRequest) {
       // Prioritize title words for all platforms
       const seeds = titleWords.concat(filenameHints(f.name)); // Title words first for all platforms
       
-      let keywords = normalizeKeywords(rawKeywords, a.keywordCount, seeds, a.negativeKeywords);
+      const targetCount = a.keywordMode === 'fixed' ? a.keywordCount : AUTO_KEYWORD_CAP;
+      const requestedCount = targetCount;
+      let keywords = normalizeKeywords(rawKeywords, requestedCount, seeds, a.negativeKeywords);
       
       // Post-processing: Filter out filename-based keywords when image is provided
       if (imageData && keywords.length > 0) {
@@ -766,12 +785,12 @@ export async function POST(req: NextRequest) {
         if (removedKeywords.length > 0) {
           console.warn(`⚠️ POST-PROCESSING: Removed filename-based keywords for ${f.name}:`, removedKeywords);
           // If we removed keywords, try to fill back up to the target count if possible
-          if (keywords.length < a.keywordCount) {
+          if (keywords.length < targetCount) {
             // Use title words that weren't already in keywords
             const titleWordsForKeywords = titleWords
               .filter(w => w.length > 2 && !keywords.some(k => k.toLowerCase() === w.toLowerCase()))
-              .slice(0, a.keywordCount - keywords.length);
-            keywords = [...keywords, ...titleWordsForKeywords].slice(0, a.keywordCount);
+              .slice(0, targetCount - keywords.length);
+            keywords = [...keywords, ...titleWordsForKeywords].slice(0, targetCount);
           }
         }
       }
@@ -795,16 +814,16 @@ export async function POST(req: NextRequest) {
             // Rebuild keywords with title words in top 10
             keywords = [...top10, ...toInsert, ...after10]
               .filter((k, idx, arr) => arr.indexOf(k) === idx) // Remove duplicates
-              .slice(0, a.keywordCount); // Ensure exact count
+              .slice(0, targetCount); // Ensure cap
           } else {
             // For other platforms, insert title words at the beginning
             // Calculate how many we can insert without exceeding the limit
-            const availableSlots = a.keywordCount - keywords.length;
+            const availableSlots = targetCount - keywords.length;
             const toInsert = missingTitleWords.slice(0, Math.max(0, availableSlots));
             if (toInsert.length > 0) {
               keywords = [...toInsert, ...keywords]
                 .filter((k, idx, arr) => arr.indexOf(k) === idx) // Remove duplicates
-                .slice(0, a.keywordCount); // Ensure exact count
+                .slice(0, targetCount); // Ensure cap
             }
           }
         }
@@ -815,7 +834,7 @@ export async function POST(req: NextRequest) {
       const withScientific = addScientificNames(enriched);
       // Keep original order but add enriched terms, then trim to exact count
       let finalKeywords = [...keywords, ...withScientific.filter(k => !keywords.includes(k))]
-        .slice(0, a.keywordCount);
+        .slice(0, targetCount);
 
       // Apply user-specified negative keywords (case-insensitive) as a hard filter
       if (Array.isArray(a.negativeKeywords) && a.negativeKeywords.length > 0) {
@@ -837,50 +856,17 @@ export async function POST(req: NextRequest) {
         if (removedFinalKeywords.length > 0) {
           console.warn(`⚠️ POST-PROCESSING: Removed filename-based keywords from final list for ${f.name}:`, removedFinalKeywords);
           // Fill back up to target count if needed
-          if (finalKeywords.length < a.keywordCount) {
+          if (finalKeywords.length < targetCount) {
             const titleWordsForKeywords = titleWords
               .filter(w => w.length > 2 && !finalKeywords.some(k => k.toLowerCase() === w.toLowerCase()))
-              .slice(0, a.keywordCount - finalKeywords.length);
-            finalKeywords = [...finalKeywords, ...titleWordsForKeywords].slice(0, a.keywordCount);
+              .slice(0, targetCount - finalKeywords.length);
+            finalKeywords = [...finalKeywords, ...titleWordsForKeywords].slice(0, targetCount);
           }
         }
       }
       
-      // Ensure exact keyword count - pad or trim if needed
-      if (finalKeywords.length < a.keywordCount) {
-        // Pad with safe fallback keywords (avoid banned words)
-        const fallbacks = ['design', 'graphic', 'template', 'element', 'style', 'art', 'creative', 'visual', 'decorative', 'pattern'];
-        const existingSet = new Set(finalKeywords.map(k => k.toLowerCase()));
-        for (const fallback of fallbacks) {
-          if (finalKeywords.length >= a.keywordCount) break;
-          const fallbackLower = fallback.toLowerCase();
-          if (!existingSet.has(fallbackLower) && !BAN.has(fallbackLower)) {
-            finalKeywords.push(fallbackLower);
-            existingSet.add(fallbackLower);
-          }
-        }
-        // If still not enough, use contextual fallbacks from normalizeKeywords
-        const contextual = ['cozy','holiday','winter','seasonal','decor','home','gift','present','pattern','craft','textile','fabric','ornament','plush'];
-        for (const c of contextual) {
-          if (finalKeywords.length >= a.keywordCount) break;
-          if (!existingSet.has(c) && !BAN.has(c)) {
-            finalKeywords.push(c);
-            existingSet.add(c);
-          }
-        }
-        // Last resort: pad with generic safe terms
-        let counter = 1;
-        while (finalKeywords.length < a.keywordCount) {
-          const padded = `item${counter}`;
-          if (!existingSet.has(padded) && !BAN.has(padded)) {
-            finalKeywords.push(padded);
-            existingSet.add(padded);
-          }
-          counter++;
-          if (counter > 100) break; // Safety limit
-        }
-      } else if (finalKeywords.length > a.keywordCount) {
-        // Trim to exact count
+      // Trim for fixed mode; auto mode remains flexible (no filler padding)
+      if (a.keywordMode === 'fixed' && finalKeywords.length > a.keywordCount) {
         finalKeywords = finalKeywords.slice(0, a.keywordCount);
       }
       
@@ -890,7 +876,7 @@ export async function POST(req: NextRequest) {
         description,
         finalKeywords,
         a.titleLen,
-        a.keywordCount,
+        a.keywordMode === 'fixed' ? a.keywordCount : undefined,
         f.name,
         !!imageData,
         a.platform

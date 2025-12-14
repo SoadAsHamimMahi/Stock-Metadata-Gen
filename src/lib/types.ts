@@ -37,6 +37,7 @@ export const FormSchema = z.object({
   model: z.object({ provider: z.enum(['gemini','mistral','groq']), preview: z.boolean().optional() }),
   titleLen: z.number().min(20).max(200),
   descLen: z.literal(150),
+  keywordMode: z.enum(['auto','fixed']).optional().default('fixed'),
   keywordCount: z.number().min(5).max(49),
   assetType: AssetTypeEnum,
   prefix: z.string().optional(),

@@ -126,9 +126,39 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
                   <input type="range" min={150} max={150} value={150} disabled className="w-full opacity-50 accent-green-accent" />
                 </div>
                 <div>
-                  <label className="label text-text-secondary">Keywords Count: <span className="text-green-bright font-bold">{value.keywordCount}</span> Keywords</label>
-                  <input type="range" min={5} max={49} value={value.keywordCount} className="w-full accent-green-accent"
-                         onChange={(e)=>set('keywordCount', clamp(parseInt(e.target.value||'0',10),5,49))} />
+                  <label className="label text-text-secondary">
+                    Keywords Count:{' '}
+                    <span className="text-green-bright font-bold">
+                      {value.keywordMode === 'auto' ? 'Auto' : value.keywordCount}
+                    </span>{' '}
+                    Keywords
+                  </label>
+                  <div className="mt-2 flex items-center gap-3">
+                    <select
+                      className="select w-28"
+                      value={value.keywordMode || 'fixed'}
+                      onChange={(e) => set('keywordMode', e.target.value as any)}
+                    >
+                      <option value="auto">auto</option>
+                      <option value="fixed">fixed</option>
+                    </select>
+                    <input
+                      type="range"
+                      min={5}
+                      max={49}
+                      value={value.keywordCount}
+                      disabled={(value.keywordMode || 'fixed') === 'auto'}
+                      className="w-full accent-green-accent disabled:opacity-40"
+                      onChange={(e) =>
+                        set('keywordCount', clamp(parseInt(e.target.value || '0', 10), 5, 49))
+                      }
+                    />
+                  </div>
+                  <p className="text-xs text-ink/60 mt-1">
+                    {value.keywordMode === 'auto'
+                      ? 'Auto lets the AI choose the best keyword count (typically 20–35) without filler.'
+                      : 'Fixed requests exactly this many keywords.'}
+                  </p>
                 </div>
               </div>
 

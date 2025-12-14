@@ -38,14 +38,17 @@ export function getSmartDefaults(
   
   if (platform === 'adobe') {
     defaults.titleLen = 70;
+    defaults.keywordMode = 'fixed';
     defaults.keywordCount = 41;
     defaults.model = { provider: 'gemini', preview: false };
   } else if (platform === 'shutterstock') {
     defaults.titleLen = 120;
+    defaults.keywordMode = 'fixed';
     defaults.keywordCount = 49;
     defaults.model = { provider: 'gemini', preview: false };
   } else if (platform === 'general') {
     defaults.titleLen = 100;
+    defaults.keywordMode = 'fixed';
     defaults.keywordCount = 35;
     defaults.model = { provider: 'gemini', preview: false };
   }

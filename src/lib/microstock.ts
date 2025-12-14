@@ -280,12 +280,6 @@ function sanitize(out: any): AdobeOut {
       if (!seen.has(w)) { seen.add(w); uniq.push(w); }
       if (uniq.length === 49) break;
     }
-    // Contextual fallbacks (still descriptive, avoid generic platform terms)
-    const contextual = ['cozy','holiday','winter','seasonal','decor','home','gift','present','pattern','craft','textile','fabric','ornament','plush'];
-    for (const c of contextual) {
-      if (uniq.length >= 49) break;
-      if (!seen.has(c)) { seen.add(c); uniq.push(c); }
-    }
     // As an absolute last resort, generate unique placeholders (rare)
     while (uniq.length < 49) {
       const filler = `keyword${uniq.length}`;
