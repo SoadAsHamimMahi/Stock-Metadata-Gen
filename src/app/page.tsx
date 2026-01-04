@@ -62,10 +62,10 @@ export default function Page() {
 
   const [form, setForm] = useState({
     platform: 'adobe' as 'general' | 'adobe' | 'shutterstock',
-    model: { provider: 'gemini' as 'gemini' | 'mistral' | 'groq', preview: false },
+    model: { provider: 'groq' as 'gemini' | 'mistral' | 'groq', preview: false },
     geminiModel: 'gemini-2.5-flash' as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite' | undefined,
     mistralModel: undefined as 'mistral-small-latest' | 'mistral-medium-latest' | 'mistral-large-latest' | undefined,
-    groqModel: undefined as
+    groqModel: 'meta-llama/llama-4-scout-17b-16e-instruct' as
       | 'meta-llama/llama-4-maverick-17b-128e-instruct'
       | 'meta-llama/llama-4-scout-17b-16e-instruct'
       | undefined,
@@ -2062,12 +2062,13 @@ export default function Page() {
 
         {/* Center - Main Content */}
         <div className="space-y-6">
-          <div className="card p-6">
+          <div className="card p-6 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)] overflow-hidden flex flex-col">
             <FileDrop
               files={files}
               onFilesChange={setFiles}
               onGenerateAll={onGenerateAll}
               generating={busy}
+              generationDisabled={form.uiTab === 'prompt'}
               onExportCSV={onExportCSV}
               onExportZIP={onExportZIP}
               hasRows={rows.length > 0}

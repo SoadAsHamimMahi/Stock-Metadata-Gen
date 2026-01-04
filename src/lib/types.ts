@@ -33,6 +33,8 @@ export const FileSchema = z.object({
 });
 
 export const FormSchema = z.object({
+  // UI-only: which advanced tab the user is viewing. Used to disable generation while in Text Prompt preview.
+  uiTab: z.enum(['metadata','prompt']).optional().default('metadata'),
   platform: PlatformEnum,
   model: z.object({ provider: z.enum(['gemini','mistral','groq']), preview: z.boolean().optional() }),
   titleLen: z.number().min(20).max(200),

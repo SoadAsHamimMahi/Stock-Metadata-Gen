@@ -88,6 +88,38 @@ const GENERIC_KEYWORDS = new Set([
 // Helper to safely escape user-provided strings for use in RegExp
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Strict title cap that tries to keep a clean ending within the max length.
+function strictTrimTitleToMax(input: string, max: number): string {
+  let t = String(input || '').trim().replace(/\s+/g, ' ');
+  if (t.length <= max) return t;
+
+  const slice = t.slice(0, max).trimEnd();
+
+  // Prefer ending at a sentence boundary within the limit.
+  for (let i = slice.length; i >= Math.max(0, Math.floor(max * 0.7)); i--) {
+    const c = slice[i - 1];
+    if (c === '.' || c === '!' || c === '?') {
+      return slice.slice(0, i).trimEnd();
+    }
+  }
+
+  // Otherwise, end at the last word boundary.
+  const lastSpace = slice.lastIndexOf(' ');
+  t = (lastSpace > Math.floor(max * 0.6) ? slice.slice(0, lastSpace) : slice).trimEnd();
+
+  // Cleanup: remove trailing punctuation and dangling connector words.
+  for (let i = 0; i < 5; i++) {
+    const before = t;
+    t = t.replace(/[,\-–—:;]+$/g, '').trimEnd();
+    t = t.replace(/\b(by|with|and|or|of|to|for|from|in|on|at|into|as)$/i, '').trimEnd();
+    if (t === before) break;
+  }
+
+  // Final safety: ensure we don't exceed max after trimming (shouldn't happen, but keep safe).
+  if (t.length > max) t = t.slice(0, max).trimEnd();
+  return t;
+}
+
 // Adobe Stock title validation
 function validateAdobeTitle(title: string, expectedLen: number): { warnings: string[]; errors: string[] } {
   const warnings: string[] = [];
@@ -668,14 +700,12 @@ export async function POST(req: NextRequest) {
       if (phrasesToAdd.length > 0) {
         const phrasesText = phrasesToAdd.join(' ');
         const newTitle = `${title} ${phrasesText}`.trim();
-        const flexibleLimit = Math.max(Math.round(a.titleLen * 0.13), 17);
-        const flexibleMax = Math.min(a.titleLen + flexibleLimit, 200);
-        
-        if (newTitle.length <= flexibleMax) {
+        // Strictly respect the user-selected titleLen
+        if (newTitle.length <= a.titleLen) {
           title = newTitle;
           console.log(`✓ Added file attribute phrases to title: "${phrasesText}"`);
         } else {
-          console.warn(`⚠ Could not add phrases "${phrasesText}" - would exceed title length limit (${newTitle.length} > ${flexibleMax})`);
+          console.warn(`⚠ Could not add phrases "${phrasesText}" - would exceed title length limit (${newTitle.length} > ${a.titleLen})`);
         }
       }
       
@@ -698,9 +728,7 @@ export async function POST(req: NextRequest) {
           console.warn(`⚠️ VALIDATION: Title missing "isolated" or "transparent background" phrase for ${f.name}, adding it...`);
           const phraseToAdd = 'isolated on transparent background';
           const newTitle = `${title} ${phraseToAdd}`.trim();
-          const flexibleLimit = Math.max(Math.round(a.titleLen * 0.13), 17);
-          const flexibleMax = Math.min(a.titleLen + flexibleLimit, 200);
-          if (newTitle.length <= flexibleMax) {
+          if (newTitle.length <= a.titleLen) {
             title = newTitle;
             console.log(`✓ Added missing transparent background phrase`);
           }
@@ -729,16 +757,10 @@ export async function POST(req: NextRequest) {
         }
       }
       
-      // Ensure title doesn't exceed limit - allow dynamic flexible buffer (13% or min 17 chars) for sentence completion (max 200)
+      // Ensure title strictly respects the user-selected limit (no flexible overflow)
       if (title.length > a.titleLen) {
-        const flexibleLimit = Math.max(Math.round(a.titleLen * 0.13), 17);
-        const flexibleMax = Math.min(a.titleLen + flexibleLimit, 200);
-        if (title.length > flexibleMax) {
-          console.warn(`⚠ Title length ${title.length} exceeds flexible limit ${flexibleMax} (base: ${a.titleLen}), truncating...`);
-        } else {
-          console.log(`ℹ Title length ${title.length} exceeds base limit ${a.titleLen} but within flexible range (up to ${flexibleMax}), allowing for sentence completion`);
-        }
-        title = truncateByChars(title, a.titleLen, flexibleLimit, 200);
+        console.warn(`⚠ Title length ${title.length} exceeds limit ${a.titleLen}, trimming to max...`);
+        title = strictTrimTitleToMax(title, a.titleLen);
       }
 
       // Apply user-specified negative title terms (case-insensitive).

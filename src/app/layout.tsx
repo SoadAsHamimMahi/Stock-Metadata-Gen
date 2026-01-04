@@ -37,19 +37,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <VideoBackground />
           <header className="sticky top-0 z-50 bg-dark-elevated/80 backdrop-blur-md border-b border-green-accent/20 shadow-green-glow">
-            {/* Top announcement ticker */}
-            <div className="border-b border-green-accent/30 bg-gradient-to-r from-emerald-500/80 via-teal-400/80 to-emerald-500/80 text-emerald-50">
-              <div className="container px-4 py-2 text-sm sm:text-base md:text-lg font-semibold ticker-container">
-                <div className="ticker-track">
-                  <span className="mr-8">
-                    Big news: Groq is now live as a Gemini alternative. Connect your own API keys and process unlimited files.
-                  </span>
-                  <span className="mr-8" aria-hidden="true">
-                    Big news: Groq is now live as a Gemini alternative. Connect your own API keys and process unlimited files.
-                  </span>
-                </div>
-              </div>
-            </div>
             <div className="container px-4">
               <Header />
             </div>

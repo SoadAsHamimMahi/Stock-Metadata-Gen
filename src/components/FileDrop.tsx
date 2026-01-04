@@ -36,6 +36,7 @@ export default function FileDrop({
   onFilesChange,
   onGenerateAll,
   generating,
+  generationDisabled = false,
   onExportCSV,
   onExportZIP,
   hasRows,
@@ -57,6 +58,7 @@ export default function FileDrop({
   onFilesChange: (f: UploadItem[]) => void;
   onGenerateAll: () => void;
   generating: boolean;
+  generationDisabled?: boolean;
   onExportCSV?: () => void;
   onExportZIP?: () => void;
   hasRows?: boolean;
@@ -82,6 +84,8 @@ export default function FileDrop({
   const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing'>('uploading');
   const inputRef = useRef<HTMLInputElement>(null);
   const { executeGuarded, loginModalOpen, setLoginModalOpen, reason, handleLoginSuccess } = useGuardedAction();
+  const hideSetupUI = generating;
+  const startProcessingDisabled = generationDisabled;
 
   // Total sizes: original (what user uploaded) vs compressed (what is sent to AI)
   const totalCompressedSize = useMemo(() => {
@@ -302,7 +306,7 @@ export default function FileDrop({
   };
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       {uploadError && (
         <div className="mb-4 p-3 bg-error/20 border border-error/40 rounded-lg text-error text-sm flex items-center justify-between">
           <span>✗ {uploadError}</span>
@@ -337,7 +341,7 @@ export default function FileDrop({
           </div>
         </div>
       )}
-      {files.length > 0 && (
+      {files.length > 0 && !hideSetupUI && (
         <div className="mb-4 text-sm text-text-secondary p-3 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
           <span className="font-bold text-green-bright">{files.length}</span>{' '}
           file{files.length !== 1 ? 's' : ''} uploaded |{' '}
@@ -369,55 +373,57 @@ export default function FileDrop({
       )}
 
       {/* Upload Zone - Always visible */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-        onClick={handleUploadClick}
-        className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 mb-6 ${
-          files.length > 0 
-            ? 'p-4' // Smaller when files exist
-            : 'p-12' // Larger when empty
-        } ${
-          dragOver
-            ? 'border-green-bright bg-green-accent/10 shadow-green-glow-lg'
-            : 'border-green-accent/30 bg-dark-elevated/30 hover:border-green-accent/50 hover:bg-dark-elevated/50 hover:shadow-green-glow'
-        }`}
-      >
-        <div className="upload-zone-content">
-          {files.length === 0 ? (
-            <>
-              <div className="text-4xl mb-4 animate-float">📁</div>
-              <div className="text-lg font-bold text-text-primary mb-2">Drag &amp; drop files here</div>
-              <div className="text-sm text-text-secondary mb-1">or click to select</div>
-              <div className="text-xs text-text-tertiary mt-2">
-                Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
-              </div>
-              <div className="text-xs text-text-tertiary">Max 150MB per file</div>
-            </>
-          ) : (
-            <>
-              <div className="text-2xl mb-2">📁</div>
-              <div className="text-sm font-bold text-text-secondary">Drop more files here or click to add</div>
-              <div className="text-xs text-text-tertiary mt-1">
-                Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
-              </div>
-            </>
-          )}
+      {!hideSetupUI && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          onClick={handleUploadClick}
+          className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 mb-6 ${
+            files.length > 0 
+              ? 'p-4' // Smaller when files exist
+              : 'p-12' // Larger when empty
+          } ${
+            dragOver
+              ? 'border-green-bright bg-green-accent/10 shadow-green-glow-lg'
+              : 'border-green-accent/30 bg-dark-elevated/30 hover:border-green-accent/50 hover:bg-dark-elevated/50 hover:shadow-green-glow'
+          }`}
+        >
+          <div className="upload-zone-content">
+            {files.length === 0 ? (
+              <>
+                <div className="text-4xl mb-4 animate-float">📁</div>
+                <div className="text-lg font-bold text-text-primary mb-2">Drag &amp; drop files here</div>
+                <div className="text-sm text-text-secondary mb-1">or click to select</div>
+                <div className="text-xs text-text-tertiary mt-2">
+                  Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
+                </div>
+                <div className="text-xs text-text-tertiary">Max 150MB per file</div>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl mb-2">📁</div>
+                <div className="text-sm font-bold text-text-secondary">Drop more files here or click to add</div>
+                <div className="text-xs text-text-tertiary mt-1">
+                  Supports PNG, JPG, JPEG, WEBP, SVG, EPS, AI, MP4, MOV, M4V, WEBM
+                </div>
+              </>
+            )}
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            multiple
+            accept=".png,.jpg,.jpeg,.webp,.svg,.eps,.ai,.mp4,.mov,.m4v,.webm"
+            onChange={onPick}
+            className="hidden"
+            style={{ display: 'none' }}
+          />
         </div>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept=".png,.jpg,.jpeg,.webp,.svg,.eps,.ai,.mp4,.mov,.m4v,.webm"
-          onChange={onPick}
-          className="hidden"
-          style={{ display: 'none' }}
-        />
-      </div>
+      )}
 
       {/* Action Bar */}
-      {files.length > 0 && (
+      {files.length > 0 && !hideSetupUI && (
         <div className="flex flex-col gap-3 mb-6">
           <div className="flex items-center gap-3 flex-wrap">
           <button 
@@ -428,10 +434,10 @@ export default function FileDrop({
             Clear All
           </button>
           <button 
-            className={`btn text-base px-6 py-3 flex items-center gap-2 ${(!files.length || generating) ? 'btn-disabled' : ''}`}
+            className={`btn text-base px-6 py-3 flex items-center gap-2 ${(!files.length || generating || startProcessingDisabled) ? 'btn-disabled' : ''}`}
             onClick={onGenerateAll}
-            disabled={!files.length || generating}
-            title="Process all uploaded files at once (faster for multiple files)"
+            disabled={!files.length || generating || startProcessingDisabled}
+            title={startProcessingDisabled ? 'Text Prompt is preview-only. Switch to Metadata tab to generate.' : 'Process all uploaded files at once (faster for multiple files)'}
           >
             <span>✨</span>
             {generating ? (
@@ -445,13 +451,13 @@ export default function FileDrop({
           </button>
           {onRegenerateAll && (() => {
             const filesWithResults = files.filter(f => rows.some(r => r.filename === f.name));
-            const canRegenerate = filesWithResults.length > 0 && !generating;
+            const canRegenerate = filesWithResults.length > 0 && !generating && !startProcessingDisabled;
             return (
               <button
                 className={`btn btn-secondary text-sm flex items-center gap-1 ${!canRegenerate ? 'btn-disabled' : ''}`}
                 onClick={onRegenerateAll}
                 disabled={!canRegenerate}
-                title="Regenerate metadata for all files (use after changing settings)"
+                title={startProcessingDisabled ? 'Text Prompt is preview-only. Switch to Metadata tab to generate.' : 'Regenerate metadata for all files (use after changing settings)'}
               >
                 {generating && filesWithResults.length > 0 ? (
                   <>
@@ -472,13 +478,13 @@ export default function FileDrop({
               const row = rows.find(r => r.filename === f.name);
               return row?.error;
             });
-            const canRegenerateFailed = failedFiles.length > 0 && !generating;
+            const canRegenerateFailed = failedFiles.length > 0 && !generating && !startProcessingDisabled;
             return (
               <button
                 className={`btn btn-secondary text-sm flex items-center gap-1 ${!canRegenerateFailed ? 'btn-disabled' : ''}`}
                 onClick={onRegenerateFailed}
                 disabled={!canRegenerateFailed}
-                title="Regenerate metadata for failed files only (use when some files had errors)"
+                title={startProcessingDisabled ? 'Text Prompt is preview-only. Switch to Metadata tab to generate.' : 'Regenerate metadata for failed files only (use when some files had errors)'}
               >
                 {generating && failedFiles.length > 0 ? (
                   <>
@@ -531,7 +537,7 @@ export default function FileDrop({
             />
           )}
           </div>
-          {showTransparentPngHint && (
+          {!hideSetupUI && showTransparentPngHint && (
             <div className="text-xs text-amber-100 bg-amber-500/10 border border-amber-400/40 rounded-md px-3 py-2 flex items-start gap-2">
               <span>⚠️</span>
               <span>
@@ -545,7 +551,7 @@ export default function FileDrop({
       )}
 
       {/* Progress Bar */}
-      {generating && processingProgress > 0 && (
+      {generating && (
         <div className="mb-4 p-4 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
           <div className="flex items-center gap-4 mb-3">
             <div className="flex-1">
@@ -557,7 +563,17 @@ export default function FileDrop({
                 <div className="progress-fill animate-pulse-glow" style={{ width: `${processingProgress}%` }}></div>
               </div>
             </div>
-            <ProgressIndicator progress={processingProgress} size="md" showPercentage={false} />
+            <div className="flex items-center gap-3">
+              {onStopProcessing && (
+                <button
+                  className="btn btn-secondary text-sm whitespace-nowrap"
+                  onClick={onStopProcessing}
+                >
+                  Stop
+                </button>
+              )}
+              <ProgressIndicator progress={processingProgress} size="md" showPercentage={false} />
+            </div>
           </div>
           <div className="text-xs text-text-secondary text-center font-medium">
             {files.length} file{files.length !== 1 ? 's' : ''} • {processingProgress}% complete
@@ -581,28 +597,31 @@ export default function FileDrop({
       )}
 
       {files.length > 0 && (
-        <div className="space-y-4">
-          {files.map((f, index) => {
-            const row = rows.find(r => r.filename === f.name);
-            const isGenerating = generatingFiles.has(f.name);
-            const workerId = fileToWorkerId.get(f.name);
-            // Always show FileCard - it handles loading/empty states internally
-            // This prevents cards from disappearing when switching between skeleton and card
-            return (
-              <div key={f.name} className="animate-scale-in" style={{ animationDelay: `${index * 0.05}s` }}>
-                <FileCard
-                  file={f}
-                  row={row}
-                  formatSize={formatSize}
-                  onDelete={() => delOne(f.name)}
-                  onRegenerate={onRegenerate}
-                  isGenerating={isGenerating}
-                  retryInfo={retryingFiles.get(f.name)}
-                  workerId={workerId}
-                />
-              </div>
-            );
-          })}
+        <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+          <div className="space-y-4">
+            {files.map((f, index) => {
+              const row = rows.find(r => r.filename === f.name);
+              const isGenerating = generatingFiles.has(f.name);
+              const workerId = fileToWorkerId.get(f.name);
+              // Always show FileCard - it handles loading/empty states internally
+              // This prevents cards from disappearing when switching between skeleton and card
+              return (
+                <div key={f.name} className="animate-scale-in" style={{ animationDelay: `${index * 0.05}s` }}>
+                  <FileCard
+                    file={f}
+                    row={row}
+                    formatSize={formatSize}
+                    onDelete={() => delOne(f.name)}
+                    onRegenerate={onRegenerate}
+                    isGenerating={isGenerating}
+                    generationDisabled={startProcessingDisabled}
+                    retryInfo={retryingFiles.get(f.name)}
+                    workerId={workerId}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
       
@@ -623,6 +642,7 @@ function FileCard({
   onDelete,
   onRegenerate,
   isGenerating = false,
+  generationDisabled = false,
   retryInfo,
   workerId
 }: {
@@ -632,6 +652,7 @@ function FileCard({
   onDelete: () => void;
   onRegenerate?: (filename: string) => void;
   isGenerating?: boolean;
+  generationDisabled?: boolean;
   retryInfo?: { attempt: number; maxAttempts: number; errorType?: string };
   workerId?: number;
 }) {
@@ -642,6 +663,9 @@ function FileCard({
 
   // Track previous title to detect when it first appears
   const prevTitleRef = useRef<string>('');
+  // Auto-scroll: only when this card STARTS generating (false -> true)
+  const cardRef = useRef<HTMLDivElement>(null);
+  const wasGeneratingRef = useRef<boolean>(false);
   
   // Reset animation state when regenerating starts
   useEffect(() => {
@@ -650,6 +674,26 @@ function FileCard({
       prevTitleRef.current = '';
     }
   }, [isGenerating, row]);
+
+  // Scroll the generating card into view so the user sees progress immediately
+  useEffect(() => {
+    if (isGenerating && !wasGeneratingRef.current) {
+      const el = cardRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        const fullyInView = rect.top >= 0 && rect.bottom <= viewportH;
+
+        if (!fullyInView) {
+          requestAnimationFrame(() => {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+        }
+      }
+    }
+
+    wasGeneratingRef.current = isGenerating;
+  }, [isGenerating]);
   
   useEffect(() => {
     if (row?.title) {
@@ -730,9 +774,12 @@ function FileCard({
   };
 
   return (
-    <div className={`card p-4 card-lift animate-scale-in ${
+    <div
+      ref={cardRef}
+      className={`card p-4 card-lift animate-scale-in ${
       isGenerating ? 'border-2 border-green-accent/50 animate-pulse-border' : ''
-    }`}>
+    }`}
+    >
       <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
         {/* Image Preview */}
         <div className="relative group">
@@ -924,15 +971,17 @@ function FileCard({
           {onRegenerate && (
             <div className="flex justify-end mt-4">
               <button
-                className={`btn text-sm flex items-center gap-1.5 ripple-effect ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
-                onClick={() => !isGenerating && onRegenerate(file.name)}
-                disabled={isGenerating}
+                className={`btn text-sm flex items-center gap-1.5 ripple-effect ${isGenerating || generationDisabled ? 'opacity-75 cursor-not-allowed' : ''}`}
+                onClick={() => !isGenerating && !generationDisabled && onRegenerate(file.name)}
+                disabled={isGenerating || generationDisabled}
                 title={
-                  row?.error 
-                    ? "Retry this failed file (API quota may have been exceeded)" 
-                    : row 
-                    ? "Regenerate metadata for this file (use if you're not satisfied with results)" 
-                    : "Process this single file (use when you want to test one file first)"
+                  generationDisabled
+                    ? 'Text Prompt is preview-only. Switch to Metadata tab to generate.'
+                    : row?.error 
+                      ? "Retry this failed file (API quota may have been exceeded)" 
+                      : row 
+                        ? "Regenerate metadata for this file (use if you're not satisfied with results)" 
+                        : "Process this single file (use when you want to test one file first)"
                 }
               >
                 {isGenerating ? (

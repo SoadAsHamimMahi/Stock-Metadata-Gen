@@ -5,7 +5,7 @@ import { clamp, sanitizeWords } from '@/lib/util';
 import type { FormState } from '@/lib/types';
 
 export default function Controls({ value, onChange }: { value: FormState; onChange: (v: FormState) => void }) {
-  const [tab, setTab] = useState<'metadata'|'prompt'>('metadata');
+  const [tab, setTab] = useState<'metadata'|'prompt'>(value.uiTab ?? 'metadata');
   const [collapsed, setCollapsed] = useState(false);
   const [showPrefix, setShowPrefix] = useState(false);
   const [showSuffix, setShowSuffix] = useState(false);
@@ -17,6 +17,10 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
   };
   const setNested = <K extends keyof FormState, T extends keyof FormState[K]>(key: K, sub: T, v: any) => {
     onChange({ ...value, [key]: { ...(value[key] as any), [sub]: v } });
+  };
+  const setTabAndPersist = (nextTab: 'metadata'|'prompt') => {
+    setTab(nextTab);
+    onChange({ ...value, uiTab: nextTab });
   };
 
   const promptPreview = useMemo(() => {
@@ -54,8 +58,14 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
       {!collapsed && (
         <>
           <div className="flex gap-2">
-            <button className={`tab ${tab==='metadata' ? 'tab-active' : 'tab-inactive'}`} onClick={()=>setTab('metadata')}>Metadata</button>
-            <button className={`tab ${tab==='prompt' ? 'tab-active' : 'tab-inactive'}`} onClick={()=>setTab('prompt')}>Prompt</button>
+            <button className={`tab ${tab==='metadata' ? 'tab-active' : 'tab-inactive'}`} onClick={()=>setTabAndPersist('metadata')}>Metadata</button>
+            <button
+              className={`tab ${tab==='prompt' ? 'tab-active' : 'tab-inactive'}`}
+              onClick={()=>setTabAndPersist('prompt')}
+              title="Text prompt preview (image-to-prompt coming soon)"
+            >
+              Text Prompt
+            </button>
           </div>
 
           {tab === 'metadata' ? (
@@ -250,7 +260,13 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <div className="p-3 rounded border border-amber-400/30 bg-amber-500/10 text-amber-100">
+                <div className="text-sm font-bold">Coming soon</div>
+                <div className="text-xs text-amber-100/80 mt-1">
+                  Image-to-prompt is not available yet. This tab currently shows a text-only prompt preview.
+                </div>
+              </div>
               <div className="label">Prompt Preview</div>
               <div className="p-3 rounded border border-deep/20 text-sm bg-warm/10">{promptPreview}</div>
             </div>

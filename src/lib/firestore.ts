@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { 
   doc, 
   getDoc, 
@@ -270,6 +270,27 @@ export async function getLeaderboard(
     const field = period === 'weekly' ? 'weekStart' : 'monthStart';
     
     console.log(`🔍 Querying leaderboard: period=${period}, field=${field}, periodStart=${periodStart}`);
+
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/b0ab08c5-e90c-4a4a-80d2-efd49d9b2231', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'B',
+        location: 'src/lib/firestore.ts:getLeaderboard:pre-query',
+        message: 'Preparing leaderboard query',
+        data: {
+          period,
+          field,
+          periodStart,
+          hasAuthCurrentUser: Boolean(auth.currentUser)
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
     
     // Query generations for this period
     // Note: We filter by period and then sort in memory to avoid index requirements
@@ -280,6 +301,26 @@ export async function getLeaderboard(
     
     const snapshot = await getDocs(generationsQuery);
     console.log(`📊 Found ${snapshot.size} generation records for ${period} period`);
+
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/b0ab08c5-e90c-4a4a-80d2-efd49d9b2231', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'B',
+        location: 'src/lib/firestore.ts:getLeaderboard:post-getDocs',
+        message: 'Leaderboard generations query succeeded',
+        data: {
+          period,
+          snapshotSize: snapshot.size,
+          hasAuthCurrentUser: Boolean(auth.currentUser)
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
     
     // Aggregate by user
     const userCounts = new Map<string, { count: number; userId: string }>();
@@ -347,6 +388,27 @@ export async function getLeaderboard(
       code: error.code,
       stack: error.stack
     });
+
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/b0ab08c5-e90c-4a4a-80d2-efd49d9b2231', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'B',
+        location: 'src/lib/firestore.ts:getLeaderboard:catch',
+        message: 'Leaderboard query failed',
+        data: {
+          errorCode: error?.code ?? null,
+          errorMessage: error?.message ?? null,
+          hasAuthCurrentUser: Boolean(auth.currentUser)
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
+
     throw error; // Re-throw so caller can handle it
   }
 }

@@ -84,7 +84,7 @@ export function createDefaultTemplates(): Template[] {
       description: 'Optimized settings for Adobe Stock with 70-char titles and keyword prioritization',
       formState: {
         platform: 'adobe',
-        model: { provider: 'gemini', preview: false },
+        model: { provider: 'groq', preview: false },
         titleLen: 70,
         descLen: 150,
         keywordMode: 'fixed',
@@ -108,7 +108,7 @@ export function createDefaultTemplates(): Template[] {
       description: 'Standard settings for Shutterstock with longer titles',
       formState: {
         platform: 'shutterstock',
-        model: { provider: 'gemini', preview: false },
+        model: { provider: 'groq', preview: false },
         titleLen: 120,
         descLen: 150,
         keywordMode: 'fixed',

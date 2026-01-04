@@ -137,9 +137,15 @@ FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or 
 10. Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
 Order keywords by importance: most important first, title words included.` : '';
   
-  // Enforce a hard minimum length for titles to avoid very short, low-information titles
-  const titleLengthLimit = Math.min(Math.max(titleLen, 55), 200);
-  const minTitleChars = 60;
+  // Title length rules:
+  // - HARD max is the user-selected titleLen (capped at 200)
+  // - Minimum adapts so short limits (e.g., 70) don't force awkward, unfinished clauses,
+  //   while larger limits (e.g., 120) can target near the max for richer titles.
+  const titleLengthLimit = Math.min(titleLen, 200);
+  const minTitleChars =
+    titleLengthLimit <= 80
+      ? Math.max(25, Math.floor(titleLengthLimit * 0.6)) // e.g., 70 -> 42
+      : Math.max(25, titleLengthLimit - 10); // e.g., 120 -> 110 (near-max targeting)
   
   const generalTitleGuidance = platform !== 'adobe' ? `
 Titles should be concise and natural while still meeting the minimum length.
@@ -170,7 +176,13 @@ Examples of GOOD titles:
 Return PURE JSON only: {"title": string, "description": string, "keywords": string[]}.
 ${imageInstructions}
 Title: MUST be COMPLETE and between ${minTitleChars} and ${titleLengthLimit} characters (hard requirement).
-NEVER return a title shorter than ${minTitleChars} characters. If your draft title is shorter, expand it with more specific, concrete detail until it reaches at least ${minTitleChars} characters without adding meaningless filler.
+HARD LENGTH REQUIREMENTS:
+- NEVER exceed ${titleLengthLimit} characters (counting spaces). If your draft is longer, rewrite it shorter BEFORE returning JSON.
+- NEVER return a title shorter than ${minTitleChars} characters. If your draft title is shorter, expand it with more specific, concrete detail until it reaches at least ${minTitleChars} characters without adding meaningless filler.
+ENDING REQUIREMENTS:
+- The title must end cleanly. The last character should be a letter or number (not a comma/colon/dash).
+- NEVER end the title with dangling connector words like: by, with, and, or, of, to, for, from, in, on, at, into, as.
+Before returning JSON: count title characters; if it violates these rules, fix it and re-check.
 CRITICAL:
 - NEVER copy or paraphrase the filename, or include file types or generic words such as "copy", "final", "jpeg", "jpg", "png", "webp".
 - NEVER include ANY words, numbers, IDs, hashes, or codes from the filename in the title (e.g., if filename contains "Whisk_2cf81f816ae2", do NOT use "whisk" or "2cf81f816ae2" in the title).

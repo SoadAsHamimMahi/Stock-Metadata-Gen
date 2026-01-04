@@ -40,17 +40,17 @@ export function getSmartDefaults(
     defaults.titleLen = 70;
     defaults.keywordMode = 'fixed';
     defaults.keywordCount = 30;
-    defaults.model = { provider: 'gemini', preview: false };
+    defaults.model = { provider: 'groq', preview: false };
   } else if (platform === 'shutterstock') {
     defaults.titleLen = 120;
     defaults.keywordMode = 'fixed';
     defaults.keywordCount = 49;
-    defaults.model = { provider: 'gemini', preview: false };
+    defaults.model = { provider: 'groq', preview: false };
   } else if (platform === 'general') {
     defaults.titleLen = 100;
     defaults.keywordMode = 'fixed';
     defaults.keywordCount = 35;
-    defaults.model = { provider: 'gemini', preview: false };
+    defaults.model = { provider: 'groq', preview: false };
   }
   
   // Asset type specific adjustments
@@ -76,22 +76,22 @@ export function getOptimalSettings(
     'adobe-photo': {
       titleLen: 70,
       keywordCount: 30,
-      model: { provider: 'gemini', preview: false }
+      model: { provider: 'groq', preview: false }
     },
     'adobe-vector': {
       titleLen: 70,
       keywordCount: 35,
-      model: { provider: 'gemini', preview: false }
+      model: { provider: 'groq', preview: false }
     },
     'shutterstock-photo': {
       titleLen: 120,
       keywordCount: 49,
-      model: { provider: 'gemini', preview: false }
+      model: { provider: 'groq', preview: false }
     },
     'general-vector': {
       titleLen: 100,
       keywordCount: 35,
-      model: { provider: 'gemini', preview: false }
+      model: { provider: 'groq', preview: false }
     }
   };
   

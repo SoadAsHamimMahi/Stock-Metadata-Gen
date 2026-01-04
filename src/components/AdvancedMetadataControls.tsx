@@ -6,7 +6,7 @@ import type { FormState } from '@/lib/types';
 
 export default function AdvancedMetadataControls({ value, onChange }: { value: FormState; onChange: (v: FormState | ((prev: FormState) => FormState)) => void }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [tab, setTab] = useState<'metadata'|'prompt'>('metadata');
+  const [tab, setTab] = useState<'metadata'|'prompt'>(value.uiTab ?? 'metadata');
   const [showPrefix, setShowPrefix] = useState(false);
   const [showSuffix, setShowSuffix] = useState(false);
   const [showNegativeTitle, setShowNegativeTitle] = useState(false);
@@ -21,6 +21,12 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
     // Use functional update to ensure we work with latest state
     onChange((prev) => ({ ...prev, [key]: v }));
   };
+
+  // Keep local tab in sync with global UI tab (if changed elsewhere)
+  useEffect(() => {
+    if (value.uiTab && value.uiTab !== tab) setTab(value.uiTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.uiTab]);
 
   // Keep local text in sync when form state changes (e.g. on load)
   useEffect(() => {
@@ -69,13 +75,20 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
       {!collapsed && (
         <>
           <div className="flex gap-2">
-            <button className={`tab ${tab==='metadata' ? 'tab-active' : 'tab-inactive'}`} onClick={()=>setTab('metadata')}>
+            <button
+              className={`tab ${tab==='metadata' ? 'tab-active' : 'tab-inactive'}`}
+              onClick={() => { setTab('metadata'); set('uiTab', 'metadata'); }}
+            >
               <span className="mr-1">🔒</span>
               Metadata
             </button>
-            <button className={`tab ${tab==='prompt' ? 'tab-active' : 'tab-inactive'}`} onClick={()=>setTab('prompt')}>
+            <button
+              className={`tab ${tab==='prompt' ? 'tab-active' : 'tab-inactive'}`}
+              onClick={() => { setTab('prompt'); set('uiTab', 'prompt'); }}
+              title="Text prompt preview (image-to-prompt coming soon)"
+            >
               <span className="mr-1">T</span>
-              Prompt
+              Text Prompt
             </button>
           </div>
 
@@ -519,7 +532,13 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
               )}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <div className="p-3 rounded border border-amber-400/30 bg-amber-500/10 text-amber-100">
+                <div className="text-sm font-bold">Coming soon</div>
+                <div className="text-xs text-amber-100/80 mt-1">
+                  Image-to-prompt is not available yet. This tab currently shows a text-only prompt preview.
+                </div>
+              </div>
               <div className="label text-text-primary">Prompt Preview</div>
               <div className="p-4 rounded border border-green-accent/20 text-sm bg-green-accent/10 font-medium text-text-primary">{promptPreview}</div>
             </div>
