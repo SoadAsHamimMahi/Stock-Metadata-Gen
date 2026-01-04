@@ -60,7 +60,8 @@ export default function Page() {
   // Feature flag: Mistral is temporarily disabled (paid service)
   const MISTRAL_ENABLED = false;
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FormState>({
+    uiTab: 'metadata',
     platform: 'adobe' as 'general' | 'adobe' | 'shutterstock',
     model: { provider: 'groq' as 'gemini' | 'mistral' | 'groq', preview: false },
     geminiModel: 'gemini-2.5-flash' as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite' | undefined,
@@ -150,8 +151,8 @@ export default function Page() {
             preview: updated.model.preview ?? prev.model.preview ?? false
           },
           videoHints: {
-            style: updated.videoHints?.style ?? prev.videoHints.style,
-            tech: updated.videoHints?.tech ?? prev.videoHints.tech
+            style: updated.videoHints?.style ?? prev.videoHints?.style ?? [],
+            tech: updated.videoHints?.tech ?? prev.videoHints?.tech ?? []
           },
           negativeTitle: updated.negativeTitle ?? prev.negativeTitle,
           negativeKeywords: updated.negativeKeywords ?? prev.negativeKeywords,
@@ -180,8 +181,8 @@ export default function Page() {
             preview: newForm.model.preview ?? prev.model.preview ?? false
           },
           videoHints: {
-            style: newForm.videoHints?.style ?? prev.videoHints.style,
-            tech: newForm.videoHints?.tech ?? prev.videoHints.tech
+            style: newForm.videoHints?.style ?? prev.videoHints?.style ?? [],
+            tech: newForm.videoHints?.tech ?? prev.videoHints?.tech ?? []
           },
           negativeTitle: newForm.negativeTitle ?? prev.negativeTitle,
           negativeKeywords: newForm.negativeKeywords ?? prev.negativeKeywords,
@@ -2062,13 +2063,12 @@ export default function Page() {
 
         {/* Center - Main Content */}
         <div className="space-y-6">
-          <div className="card p-6 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)] overflow-hidden flex flex-col">
+          <div className="card p-6">
             <FileDrop
               files={files}
               onFilesChange={setFiles}
               onGenerateAll={onGenerateAll}
               generating={busy}
-              generationDisabled={form.uiTab === 'prompt'}
               onExportCSV={onExportCSV}
               onExportZIP={onExportZIP}
               hasRows={rows.length > 0}

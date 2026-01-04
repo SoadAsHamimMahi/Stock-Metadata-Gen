@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import VideoBackground from '@/components/VideoBackground';
 import logo from '@/image/logo.jpeg';
 import { AuthProvider } from '@/contexts/AuthContext';
+import FirebaseAnalyticsInit from '@/components/FirebaseAnalyticsInit';
 
 const spaceGrotesk = Space_Grotesk({ 
   subsets: ['latin'], 
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable}`}>
       <body className="min-h-screen bg-dark-bg font-sans" style={{ fontFamily: 'var(--font-space-grotesk), system-ui, sans-serif' }}>
         <AuthProvider>
+          <FirebaseAnalyticsInit />
           <VideoBackground />
           <header className="sticky top-0 z-50 bg-dark-elevated/80 backdrop-blur-md border-b border-green-accent/20 shadow-green-glow">
             <div className="container px-4">
