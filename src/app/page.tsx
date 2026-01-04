@@ -61,6 +61,7 @@ export default function Page() {
   const MISTRAL_ENABLED = false;
 
   const [form, setForm] = useState({
+    uiTab: 'metadata' as 'metadata' | 'prompt',
     platform: 'adobe' as 'general' | 'adobe' | 'shutterstock',
     model: { provider: 'groq' as 'gemini' | 'mistral' | 'groq', preview: false },
     geminiModel: 'gemini-2.5-flash' as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite' | undefined,
@@ -140,6 +141,8 @@ export default function Page() {
         return {
           ...prev,
           ...updated,
+          // Preserve uiTab from previous state or updated value
+          uiTab: updated.uiTab ?? prev.uiTab,
           // Explicitly preserve model fields to ensure they're not lost during state updates
           geminiModel: updated.geminiModel !== undefined ? updated.geminiModel : prev.geminiModel,
           mistralModel: updated.mistralModel !== undefined ? updated.mistralModel : prev.mistralModel,
@@ -171,6 +174,8 @@ export default function Page() {
         return {
           ...prev,
           ...newForm,
+          // Preserve uiTab from previous state or updated value
+          uiTab: newForm.uiTab ?? prev.uiTab,
           // Explicitly preserve model fields to ensure they're not lost during state updates
           geminiModel: newForm.geminiModel !== undefined ? newForm.geminiModel : prev.geminiModel,
           mistralModel: newForm.mistralModel !== undefined ? newForm.mistralModel : prev.mistralModel,
