@@ -58,6 +58,7 @@ export default function Page() {
   const [completionStats, setCompletionStats] = useState<CompletionStats | null>(null);
 
   // Feature flag: Mistral is temporarily disabled (paid service)
+  // Keep this constant outside hooks so dependencies don't change.
   const MISTRAL_ENABLED = false;
 
   const [form, setForm] = useState<FormState>({
@@ -141,6 +142,8 @@ export default function Page() {
         return {
           ...prev,
           ...updated,
+          // Preserve uiTab from previous state or updated value
+          uiTab: updated.uiTab ?? prev.uiTab,
           // Explicitly preserve model fields to ensure they're not lost during state updates
           geminiModel: updated.geminiModel !== undefined ? updated.geminiModel : prev.geminiModel,
           mistralModel: updated.mistralModel !== undefined ? updated.mistralModel : prev.mistralModel,
@@ -172,6 +175,8 @@ export default function Page() {
         return {
           ...prev,
           ...newForm,
+          // Preserve uiTab from previous state or updated value
+          uiTab: newForm.uiTab ?? prev.uiTab,
           // Explicitly preserve model fields to ensure they're not lost during state updates
           geminiModel: newForm.geminiModel !== undefined ? newForm.geminiModel : prev.geminiModel,
           mistralModel: newForm.mistralModel !== undefined ? newForm.mistralModel : prev.mistralModel,
@@ -270,7 +275,7 @@ export default function Page() {
       console.error('❌ Error loading bearer token:', error);
       bearerRef.current = '';
     }
-  }, [form.model.provider, handleFormChange]);
+  }, [form.model.provider, handleFormChange, MISTRAL_ENABLED]);
   
   // Load bearer token on mount and when provider changes
   useEffect(() => {
@@ -285,7 +290,7 @@ export default function Page() {
         model: { ...prev.model, provider: 'gemini' } 
       }));
     }
-  }, [form.model.provider, handleFormChange]);
+  }, [form.model.provider, handleFormChange, MISTRAL_ENABLED]);
   
   // Listen for model preference changes (from Header's KeyModal or other sources)
   useEffect(() => {
@@ -358,7 +363,7 @@ export default function Page() {
       window.removeEventListener('modelPreferenceChanged', handleModelChange);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [form.geminiModel, form.mistralModel, form.groqModel, handleFormChange]);
+  }, [form.geminiModel, form.mistralModel, form.groqModel, handleFormChange, MISTRAL_ENABLED]);
 
   // Reset progress-related state when files are cleared
   useEffect(() => {

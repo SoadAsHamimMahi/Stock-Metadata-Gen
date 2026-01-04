@@ -83,6 +83,7 @@ export function createDefaultTemplates(): Template[] {
       name: 'Adobe Stock Optimized',
       description: 'Optimized settings for Adobe Stock with 70-char titles and keyword prioritization',
       formState: {
+        uiTab: 'metadata',
         platform: 'adobe',
         model: { provider: 'groq', preview: false },
         titleLen: 70,
@@ -107,6 +108,7 @@ export function createDefaultTemplates(): Template[] {
       name: 'Shutterstock Standard',
       description: 'Standard settings for Shutterstock with longer titles',
       formState: {
+        uiTab: 'metadata',
         platform: 'shutterstock',
         model: { provider: 'groq', preview: false },
         titleLen: 120,
