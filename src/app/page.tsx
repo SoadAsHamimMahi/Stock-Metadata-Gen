@@ -2068,7 +2068,7 @@ export default function Page() {
 
         {/* Center - Main Content */}
         <div className="space-y-6">
-          <div className="card p-6">
+          <div className="card p-6 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)] overflow-hidden flex flex-col min-h-0">
             <FileDrop
               files={files}
               onFilesChange={setFiles}
