@@ -73,7 +73,8 @@ function rules(
   titleLen: number,
   hasImage: boolean = false,
   platform?: 'general' | 'adobe' | 'shutterstock',
-  isVideo?: boolean
+  isVideo?: boolean,
+  assetType?: 'photo'|'illustration'|'vector'|'3d'|'icon'|'video'
 ) {
   // Keyword target:
   // - auto: encourage a tight, high-precision set (typically 20–35)
@@ -136,6 +137,73 @@ FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or 
 9. Include number of people: "one person", "three people", "nobody" (if applicable).
 10. Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
 Order keywords by importance: most important first, title words included.` : '';
+
+  const adobeKeywordHardRules = platform === 'adobe' ? `
+ADOBE KEYWORD HARD RULES (ACCURACY):
+- ONLY include keywords that are clearly supported by the image.
+- FORBIDDEN unless clearly visible/true:
+  - "wildlife", "nature", "outdoor", "forest", "snow", "winter landscape"
+- Do NOT add filler just to reach the count. If you need more keywords, add:
+  - higher/lower specificity (dog → canine → animal → mammal)
+  - accurate style/medium terms (illustration, vector, line art, outline) ONLY if true
+  - accurate setting terms (indoor/outdoor/sofa/couch/toy) ONLY if visible
+- Limit color synonyms: choose ONE per visible color.
+  Example: if red is visible, pick ONE of ["red","crimson","scarlet"] — not all.
+  If white background is present, prefer ["white background","isolated"] over synonyms like "pure", "ivory", "snow".
+- Avoid redundancy:
+  - If you include "santa hat", you may omit "hat" unless you need it for search coverage.
+- First 10 keywords MUST be the most important buyer search terms:
+  subject + key objects + style/medium + background + main theme (e.g., christmas/holiday).
+` : '';
+
+  const SUBJECTIVE_ADJECTIVES = [
+    'beautiful','gorgeous','stunning','charming','cute','adorable','cozy','amazing','perfect'
+  ];
+
+  const adobeHardBoost = platform === 'adobe' ? `
+ADOBE STOCK BOOST (CRITICAL):
+- Write FACTUAL metadata only. Avoid subjective adjectives like: ${SUBJECTIVE_ADJECTIVES.join(', ')}.
+- BREED RULE: Only name a specific breed (e.g., "golden retriever") if you are highly confident from visible traits.
+  If you are not ~95% sure, use the generic term "dog".
+- TITLE MUST include:
+  1) Subject (what it is)
+  2) Action/attributes (what it is doing/wearing/holding)
+  3) MEDIUM/STYLE if applicable (e.g., "vector illustration", "illustration", "line art", "outline") — only if true
+  4) Background context if visible/true ("isolated", "white background", or "transparent background" only if true)
+- KEYWORDS MUST be prioritized:
+  - Top 10 keywords must include the subject + key visible objects + medium/style + background (if relevant).
+  - Prefer stock-buyer style terms when accurate: "line art", "outline", "clipart", "vector illustration".
+` : '';
+
+  const taxonomyBoost = hasImage ? `
+TAXONOMY / BREED RULES (CRITICAL ACCURACY):
+- First identify the GENERAL species/family (e.g., "dog", "cat", "eagle", "parrot", "sparrow") from visible traits.
+- Only identify a SPECIFIC breed/species if you are highly confident from visible characteristics.
+  Use this scale:
+  - 90–100%: you MAY name the breed/species (e.g., "golden retriever", "border collie", "bald eagle").
+  - 60–89%: do NOT name it; use broader labels (e.g., "retriever", "hound", "songbird", "raptor").
+  - <60%: use only the generic label ("dog" / "bird" / "cat").
+- NEVER guess a breed/species from context, filename, stereotypes, or trends.
+- If you name a breed/species, add 1–2 confirming visible traits in the description (only if true).
+- Keywords: include multiple specificity levels when confident:
+  - generic (dog/bird/animal)
+  - group (retriever/raptor/waterfowl)
+  - specific (breed/species) ONLY if confidence ≥90%
+` : '';
+
+  const petVsWildlifeRule = hasImage ? `
+CONTEXT RULE:
+- If the animal is clearly a PET (indoors, couch/sofa/bed, toy, collar, home setting), DO NOT use "wildlife" or "nature".
+` : '';
+
+  const mediumGuidance =
+    assetType === 'vector'
+      ? `MEDIUM REQUIREMENT: This is a VECTOR asset. The title MUST include "vector illustration" (within the character limit).`
+      : assetType === 'illustration'
+      ? `MEDIUM REQUIREMENT: This is an ILLUSTRATION. The title MUST include "illustration" (within the character limit).`
+      : assetType === 'icon'
+      ? `MEDIUM REQUIREMENT: This is an ICON. The title MUST include "icon" (within the character limit).`
+      : '';
   
   // Title length rules:
   // - HARD max is the user-selected titleLen (capped at 200)
@@ -175,6 +243,9 @@ Examples of GOOD titles:
   return `
 Return PURE JSON only: {"title": string, "description": string, "keywords": string[]}.
 ${imageInstructions}
+${taxonomyBoost}
+${petVsWildlifeRule}
+${mediumGuidance ? `\n${mediumGuidance}\n` : ''}
 Title: MUST be COMPLETE and between ${minTitleChars} and ${titleLengthLimit} characters (hard requirement).
 HARD LENGTH REQUIREMENTS:
 - NEVER exceed ${titleLengthLimit} characters (counting spaces). If your draft is longer, rewrite it shorter BEFORE returning JSON.
@@ -195,6 +266,7 @@ ${generalTitleGuidance}
 Write a natural, descriptive title (a short phrase or sentence), not a keyword list. Subject-first; DO NOT use filler words:
 [${BANNED_TITLE.join(', ')}].
 ${adobeTitleGuidance}
+${adobeHardBoost}
 ${fewShotExamples}
 Description: ≤150 chars, 1 sentence, subject + style/setting/use-case; no brand/celebrity/release claims.
 NOTE: Titles and keywords are PRIMARY for search visibility. Description is supporting context.
@@ -207,6 +279,7 @@ ${keywordMode === 'auto'
 CRITICAL: NEVER include ANY words, numbers, IDs, hashes, codes, or alphanumeric strings from the filename in keywords. Base keywords ONLY on what is visible in the image or described in the title.
 Order keywords by importance (MOST CRITICAL for Adobe Stock search visibility).
 ${adobeKeywordGuidance}
+${adobeKeywordHardRules}
 All keywords: lowercase, unique, no quotes, no duplicates.
 CRITICAL DUPLICATE PREVENTION: Before returning JSON, verify all keywords are unique (case-insensitive). If you find duplicates like ["design", "art", "design"], remove duplicates and ensure each keyword appears only once.
 NEVER include banned keywords: [${BANNED_KEYWORDS.join(', ')}].
@@ -282,7 +355,7 @@ This override takes precedence over everything else in this prompt (except filen
   const shouldUseFilenameHints = !hasImage;
   
   return `
-${filenameRestriction}${mandatoryOverride}${rules(a.keywordMode, a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
+${filenameRestriction}${mandatoryOverride}${rules(a.keywordMode, a.keywordCount, a.titleLen, hasImage, a.platform, isVideo, a.assetType)}
 Platform: ${a.platform} (${PLATFORM_TIPS[a.platform]}).
 Asset: ${a.assetType} (${ASSET_TIPS[a.assetType]}); ext: ${a.extension}.
 ${filenameRule ? `${filenameRule}\n` : ''}${fileAttributesText}${hasImage ? `${imageContext}

@@ -59,6 +59,14 @@ const STOPWORDS = new Set([
   'a','an','and','are','as','at','be','by','for','from','in','into','is','it','of','on','or','out','the','to','with'
 ]);
 
+// Keywords that are generally unhelpful or disallowed for Adobe Stock keywording.
+// Adobe keywords should describe content and concepts, not file formats.
+const ADOBE_FORMAT_KEYWORDS = new Set([
+  'jpg','jpeg','png','webp','gif','tiff','bmp',
+  'svg','eps','ai','pdf','psd',
+  'dxf','dwg'
+]);
+
 // Common brand/IP names to detect
 const COMMON_BRANDS = new Set([
   'apple', 'google', 'microsoft', 'amazon', 'facebook', 'meta', 'twitter', 'x', 'instagram',
@@ -470,8 +478,10 @@ export async function POST(req: NextRequest) {
         imageData,
         isolatedOnTransparentBackground: a.isolatedOnTransparentBackground || false,
         isolatedOnWhiteBackground: a.isolatedOnWhiteBackground || false,
-        isVector: a.isVector || false,
-        isIllustration: a.isIllustration || false,
+        // Auto-set these flags from inferred assetType so the prompt can reliably
+        // enforce medium/style requirements even when the user doesn't toggle them.
+        isVector: (effType === 'vector') || a.isVector || false,
+        isIllustration: (effType === 'illustration') || a.isIllustration || false,
         geminiModel: a.geminiModel,
         mistralModel: a.mistralModel,
         groqModel: a.groqModel
@@ -906,6 +916,35 @@ export async function POST(req: NextRequest) {
               .slice(0, targetCount - finalKeywords.length);
             finalKeywords = [...finalKeywords, ...titleWordsForKeywords].slice(0, targetCount);
           }
+        }
+      }
+
+      // Adobe Stock: remove file-format keywords (png/svg/eps/dxf/etc). These hurt relevance.
+      if (a.platform === 'adobe' && finalKeywords.length > 0) {
+        const before = [...finalKeywords];
+        finalKeywords = finalKeywords.filter(k => !ADOBE_FORMAT_KEYWORDS.has(String(k).toLowerCase().trim()));
+        const removed = before.filter(k => !finalKeywords.includes(k));
+        if (removed.length > 0) {
+          console.log(`ℹ Adobe keyword cleanup: removed format keywords for ${f.name}:`, removed);
+          // Fill back up to target count if needed using enriched terms first, then title words.
+          if (finalKeywords.length < targetCount) {
+            const fillerPool = [
+              ...withScientific,
+              ...enriched,
+              ...titleWords
+            ]
+              .map(s => String(s).toLowerCase().trim())
+              .filter(Boolean)
+              .filter(s => !ADOBE_FORMAT_KEYWORDS.has(s))
+              .filter(s => !STOPWORDS.has(s))
+              .filter(s => !finalKeywords.includes(s));
+
+            for (const cand of fillerPool) {
+              if (finalKeywords.length >= targetCount) break;
+              finalKeywords.push(cand);
+            }
+          }
+          finalKeywords = finalKeywords.slice(0, targetCount);
         }
       }
       
