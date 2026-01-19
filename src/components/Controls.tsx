@@ -62,9 +62,9 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
             <button
               className={`tab ${tab==='prompt' ? 'tab-active' : 'tab-inactive'}`}
               onClick={()=>setTabAndPersist('prompt')}
-              title="Text prompt preview (image-to-prompt coming soon)"
             >
-              Text Prompt
+              <span className="mr-1">🎨</span>
+              Image to Prompt
             </button>
           </div>
 
@@ -261,14 +261,15 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="p-3 rounded border border-amber-400/30 bg-amber-500/10 text-amber-100">
-                <div className="text-sm font-bold">Coming soon</div>
-                <div className="text-xs text-amber-100/80 mt-1">
-                  Image-to-prompt is not available yet. This tab currently shows a text-only prompt preview.
+              <div className="p-4 bg-green-accent/10 rounded-lg border border-green-accent/20">
+                <div className="text-sm font-bold text-text-primary mb-2">Image to Prompt Mode</div>
+                <div className="text-sm text-text-secondary">
+                  Generate detailed prompts that describe how to recreate your images. Perfect for understanding image composition, creating similar artwork, or training AI models.
                 </div>
               </div>
-              <div className="label">Prompt Preview</div>
-              <div className="p-3 rounded border border-deep/20 text-sm bg-warm/10">{promptPreview}</div>
+              <div className="text-sm text-text-secondary">
+                <strong className="text-green-bright">How it works:</strong> Upload images, click Generate All, and receive detailed prompts describing lighting, composition, subject matter, colors, and style.
+              </div>
             </div>
           )}
         </>
@@ -276,5 +277,6 @@ export default function Controls({ value, onChange }: { value: FormState; onChan
     </div>
   );
 }
+
 
 

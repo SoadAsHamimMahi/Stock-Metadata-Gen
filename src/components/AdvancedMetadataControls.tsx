@@ -61,7 +61,7 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-xl">🔍</span>
+          <span className="text-xl">⚙️</span>
           <h2 className="text-xl font-extrabold text-text-primary tracking-tight">Advanced Metadata Controls</h2>
         </div>
         <button 
@@ -79,16 +79,15 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
               className={`tab ${tab==='metadata' ? 'tab-active' : 'tab-inactive'}`}
               onClick={() => { setTab('metadata'); set('uiTab', 'metadata'); }}
             >
-              <span className="mr-1">🔒</span>
+              <span className="mr-1">📄</span>
               Metadata
             </button>
             <button
               className={`tab ${tab==='prompt' ? 'tab-active' : 'tab-inactive'}`}
               onClick={() => { setTab('prompt'); set('uiTab', 'prompt'); }}
-              title="Text prompt preview (image-to-prompt coming soon)"
             >
-              <span className="mr-1">T</span>
-              Text Prompt
+              <span className="mr-1">🎨</span>
+              Image to Prompt
             </button>
           </div>
 
@@ -116,7 +115,7 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                         }}
                       >
                         {p.id === 'vectorstock' && isSelected && (
-                          <span className="absolute top-1 right-1 text-xs">🔒</span>
+                          <span className="absolute top-1 right-1 text-xs">ðŸ”’</span>
                         )}
                         <div className="text-lg mb-1">{p.icon}</div>
                         <div>{p.label}</div>
@@ -324,7 +323,7 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                 {!fileAttributesCollapsed && (
                   <>
                     <p className="text-sm text-text-secondary mb-4 flex items-start gap-1.5">
-                      <span className="text-green-bright">ℹ️</span>
+                      <span className="text-green-bright">ℹ️</span>
                       <span>Specify file attributes to ensure accurate title generation. These will be automatically appended to titles.</span>
                     </p>
                     
@@ -350,14 +349,14 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                         onClick={(e) => {
                           e.stopPropagation();
                           const newValue = !(value.isolatedOnTransparentBackground || false);
-                          console.log(`🔄 Toggle "isolated on transparent background": ${value.isolatedOnTransparentBackground} → ${newValue}`);
+                          console.log(`ðŸ”„ Toggle "isolated on transparent background": ${value.isolatedOnTransparentBackground} â†’ ${newValue}`);
                           onChange((prev) => {
                             const updated = { ...prev, isolatedOnTransparentBackground: newValue };
                             // Mutually exclusive with white background
                             if (newValue) {
                               updated.isolatedOnWhiteBackground = false;
                             }
-                            console.log(`✅ Updated form state:`, {
+                            console.log(`âœ… Updated form state:`, {
                               isolatedOnTransparentBackground: updated.isolatedOnTransparentBackground,
                               isolatedOnWhiteBackground: updated.isolatedOnWhiteBackground
                             });
@@ -395,14 +394,14 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                         onClick={(e) => {
                           e.stopPropagation();
                           const newValue = !(value.isolatedOnWhiteBackground || false);
-                          console.log(`🔄 Toggle "isolated on white background": ${value.isolatedOnWhiteBackground} → ${newValue}`);
+                          console.log(`ðŸ”„ Toggle "isolated on white background": ${value.isolatedOnWhiteBackground} â†’ ${newValue}`);
                           onChange((prev) => {
                             const updated = { ...prev, isolatedOnWhiteBackground: newValue };
                             // Mutually exclusive with transparent background
                             if (newValue) {
                               updated.isolatedOnTransparentBackground = false;
                             }
-                            console.log(`✅ Updated form state:`, {
+                            console.log(`âœ… Updated form state:`, {
                               isolatedOnTransparentBackground: updated.isolatedOnTransparentBackground,
                               isolatedOnWhiteBackground: updated.isolatedOnWhiteBackground
                             });
@@ -440,10 +439,10 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                         onClick={(e) => {
                           e.stopPropagation();
                           const newValue = !(value.isVector || false);
-                          console.log(`🔄 Toggle "Vector": ${value.isVector} → ${newValue}`);
+                          console.log(`ðŸ”„ Toggle "Vector": ${value.isVector} â†’ ${newValue}`);
                           onChange((prev) => {
                             const updated = { ...prev, isVector: newValue };
-                            console.log(`✅ Updated form state - isVector: ${updated.isVector}`);
+                            console.log(`âœ… Updated form state - isVector: ${updated.isVector}`);
                             return updated;
                           });
                         }}
@@ -478,10 +477,10 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                         onClick={(e) => {
                           e.stopPropagation();
                           const newValue = !(value.isIllustration || false);
-                          console.log(`🔄 Toggle "illustration": ${value.isIllustration} → ${newValue}`);
+                          console.log(`ðŸ”„ Toggle "illustration": ${value.isIllustration} â†’ ${newValue}`);
                           onChange((prev) => {
                             const updated = { ...prev, isIllustration: newValue };
-                            console.log(`✅ Updated form state - isIllustration: ${updated.isIllustration}`);
+                            console.log(`âœ… Updated form state - isIllustration: ${updated.isIllustration}`);
                             return updated;
                           });
                         }}
@@ -533,14 +532,15 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="p-3 rounded border border-amber-400/30 bg-amber-500/10 text-amber-100">
-                <div className="text-sm font-bold">Coming soon</div>
-                <div className="text-xs text-amber-100/80 mt-1">
-                  Image-to-prompt is not available yet. This tab currently shows a text-only prompt preview.
+              <div className="p-4 bg-green-accent/10 rounded-lg border border-green-accent/20">
+                <div className="text-sm font-bold text-text-primary mb-2">Image to Prompt Mode</div>
+                <div className="text-sm text-text-secondary">
+                  Generate detailed prompts that describe how to recreate your images. Perfect for understanding image composition, creating similar artwork, or training AI models.
                 </div>
               </div>
-              <div className="label text-text-primary">Prompt Preview</div>
-              <div className="p-4 rounded border border-green-accent/20 text-sm bg-green-accent/10 font-medium text-text-primary">{promptPreview}</div>
+              <div className="text-sm text-text-secondary">
+                <strong className="text-green-bright">How it works:</strong> Upload images, click Generate All, and receive detailed prompts describing lighting, composition, subject matter, colors, and style.
+              </div>
             </div>
           )}
         </>
@@ -548,4 +548,5 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
     </div>
   );
 }
+
 

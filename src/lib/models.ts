@@ -73,8 +73,7 @@ function rules(
   titleLen: number,
   hasImage: boolean = false,
   platform?: 'general' | 'adobe' | 'shutterstock',
-  isVideo?: boolean,
-  assetType?: 'photo'|'illustration'|'vector'|'3d'|'icon'|'video'
+  isVideo?: boolean
 ) {
   // Keyword target:
   // - auto: encourage a tight, high-precision set (typically 20–35)
@@ -137,73 +136,6 @@ FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or 
 9. Include number of people: "one person", "three people", "nobody" (if applicable).
 10. Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
 Order keywords by importance: most important first, title words included.` : '';
-
-  const adobeKeywordHardRules = platform === 'adobe' ? `
-ADOBE KEYWORD HARD RULES (ACCURACY):
-- ONLY include keywords that are clearly supported by the image.
-- FORBIDDEN unless clearly visible/true:
-  - "wildlife", "nature", "outdoor", "forest", "snow", "winter landscape"
-- Do NOT add filler just to reach the count. If you need more keywords, add:
-  - higher/lower specificity (dog → canine → animal → mammal)
-  - accurate style/medium terms (illustration, vector, line art, outline) ONLY if true
-  - accurate setting terms (indoor/outdoor/sofa/couch/toy) ONLY if visible
-- Limit color synonyms: choose ONE per visible color.
-  Example: if red is visible, pick ONE of ["red","crimson","scarlet"] — not all.
-  If white background is present, prefer ["white background","isolated"] over synonyms like "pure", "ivory", "snow".
-- Avoid redundancy:
-  - If you include "santa hat", you may omit "hat" unless you need it for search coverage.
-- First 10 keywords MUST be the most important buyer search terms:
-  subject + key objects + style/medium + background + main theme (e.g., christmas/holiday).
-` : '';
-
-  const SUBJECTIVE_ADJECTIVES = [
-    'beautiful','gorgeous','stunning','charming','cute','adorable','cozy','amazing','perfect'
-  ];
-
-  const adobeHardBoost = platform === 'adobe' ? `
-ADOBE STOCK BOOST (CRITICAL):
-- Write FACTUAL metadata only. Avoid subjective adjectives like: ${SUBJECTIVE_ADJECTIVES.join(', ')}.
-- BREED RULE: Only name a specific breed (e.g., "golden retriever") if you are highly confident from visible traits.
-  If you are not ~95% sure, use the generic term "dog".
-- TITLE MUST include:
-  1) Subject (what it is)
-  2) Action/attributes (what it is doing/wearing/holding)
-  3) MEDIUM/STYLE if applicable (e.g., "vector illustration", "illustration", "line art", "outline") — only if true
-  4) Background context if visible/true ("isolated", "white background", or "transparent background" only if true)
-- KEYWORDS MUST be prioritized:
-  - Top 10 keywords must include the subject + key visible objects + medium/style + background (if relevant).
-  - Prefer stock-buyer style terms when accurate: "line art", "outline", "clipart", "vector illustration".
-` : '';
-
-  const taxonomyBoost = hasImage ? `
-TAXONOMY / BREED RULES (CRITICAL ACCURACY):
-- First identify the GENERAL species/family (e.g., "dog", "cat", "eagle", "parrot", "sparrow") from visible traits.
-- Only identify a SPECIFIC breed/species if you are highly confident from visible characteristics.
-  Use this scale:
-  - 90–100%: you MAY name the breed/species (e.g., "golden retriever", "border collie", "bald eagle").
-  - 60–89%: do NOT name it; use broader labels (e.g., "retriever", "hound", "songbird", "raptor").
-  - <60%: use only the generic label ("dog" / "bird" / "cat").
-- NEVER guess a breed/species from context, filename, stereotypes, or trends.
-- If you name a breed/species, add 1–2 confirming visible traits in the description (only if true).
-- Keywords: include multiple specificity levels when confident:
-  - generic (dog/bird/animal)
-  - group (retriever/raptor/waterfowl)
-  - specific (breed/species) ONLY if confidence ≥90%
-` : '';
-
-  const petVsWildlifeRule = hasImage ? `
-CONTEXT RULE:
-- If the animal is clearly a PET (indoors, couch/sofa/bed, toy, collar, home setting), DO NOT use "wildlife" or "nature".
-` : '';
-
-  const mediumGuidance =
-    assetType === 'vector'
-      ? `MEDIUM REQUIREMENT: This is a VECTOR asset. The title MUST include "vector illustration" (within the character limit).`
-      : assetType === 'illustration'
-      ? `MEDIUM REQUIREMENT: This is an ILLUSTRATION. The title MUST include "illustration" (within the character limit).`
-      : assetType === 'icon'
-      ? `MEDIUM REQUIREMENT: This is an ICON. The title MUST include "icon" (within the character limit).`
-      : '';
   
   // Title length rules:
   // - HARD max is the user-selected titleLen (capped at 200)
@@ -243,9 +175,6 @@ Examples of GOOD titles:
   return `
 Return PURE JSON only: {"title": string, "description": string, "keywords": string[]}.
 ${imageInstructions}
-${taxonomyBoost}
-${petVsWildlifeRule}
-${mediumGuidance ? `\n${mediumGuidance}\n` : ''}
 Title: MUST be COMPLETE and between ${minTitleChars} and ${titleLengthLimit} characters (hard requirement).
 HARD LENGTH REQUIREMENTS:
 - NEVER exceed ${titleLengthLimit} characters (counting spaces). If your draft is longer, rewrite it shorter BEFORE returning JSON.
@@ -266,7 +195,6 @@ ${generalTitleGuidance}
 Write a natural, descriptive title (a short phrase or sentence), not a keyword list. Subject-first; DO NOT use filler words:
 [${BANNED_TITLE.join(', ')}].
 ${adobeTitleGuidance}
-${adobeHardBoost}
 ${fewShotExamples}
 Description: ≤150 chars, 1 sentence, subject + style/setting/use-case; no brand/celebrity/release claims.
 NOTE: Titles and keywords are PRIMARY for search visibility. Description is supporting context.
@@ -279,7 +207,6 @@ ${keywordMode === 'auto'
 CRITICAL: NEVER include ANY words, numbers, IDs, hashes, codes, or alphanumeric strings from the filename in keywords. Base keywords ONLY on what is visible in the image or described in the title.
 Order keywords by importance (MOST CRITICAL for Adobe Stock search visibility).
 ${adobeKeywordGuidance}
-${adobeKeywordHardRules}
 All keywords: lowercase, unique, no quotes, no duplicates.
 CRITICAL DUPLICATE PREVENTION: Before returning JSON, verify all keywords are unique (case-insensitive). If you find duplicates like ["design", "art", "design"], remove duplicates and ensure each keyword appears only once.
 NEVER include banned keywords: [${BANNED_KEYWORDS.join(', ')}].
@@ -355,7 +282,7 @@ This override takes precedence over everything else in this prompt (except filen
   const shouldUseFilenameHints = !hasImage;
   
   return `
-${filenameRestriction}${mandatoryOverride}${rules(a.keywordMode, a.keywordCount, a.titleLen, hasImage, a.platform, isVideo, a.assetType)}
+${filenameRestriction}${mandatoryOverride}${rules(a.keywordMode, a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
 Platform: ${a.platform} (${PLATFORM_TIPS[a.platform]}).
 Asset: ${a.assetType} (${ASSET_TIPS[a.assetType]}); ext: ${a.extension}.
 ${filenameRule ? `${filenameRule}\n` : ''}${fileAttributesText}${hasImage ? `${imageContext}
@@ -1079,4 +1006,475 @@ function fallback(a: ModelArgs) {
     description: truncateByChars(`Commercial ${a.assetType} of ${base}.`, a.descLen),
     keywords: dedupe([base, a.assetType, 'design', 'graphic', 'template'])
   };
+}
+
+// ========== IMAGE-TO-PROMPT FUNCTIONALITY ==========
+
+export type VisionCaptionArgs = {
+  imageData?: string;
+  imageUrl?: string;
+  assetType: 'image' | 'video';
+  bearer?: string;
+  geminiModel?: GeminiModel;
+};
+
+export type VisionCaptionOutput = {
+  summary: string;
+  subject: string;
+  environment: string;
+  composition: string;
+  camera: string;
+  lighting: string;
+  colors: string;
+  materials_textures: string;
+  style: string;
+  details: string[];
+  for_video_only?: {
+    motion: string;
+    camera_motion: string;
+    pace: string;
+  };
+  error?: string;
+};
+
+export type PromptWriterArgs = {
+  caption: VisionCaptionOutput;
+  platform: 'general' | 'adobe' | 'shutterstock';
+  assetType: 'image' | 'video';
+  minWords: number;
+  stylePolicy: string;
+  negativePolicy: string;
+  provider: 'gemini' | 'mistral' | 'groq';
+  bearer?: string;
+  geminiModel?: GeminiModel;
+  mistralModel?: MistralModel;
+  groqModel?: GroqModel;
+};
+
+export type PromptWriterOutput = {
+  prompt: string;
+  negative_prompt: string;
+  title: string;
+  keywords: string[];
+  error?: string;
+};
+
+export async function generateVisionCaption(args: VisionCaptionArgs): Promise<VisionCaptionOutput> {
+  const { imageData, imageUrl, assetType, bearer, geminiModel = 'gemini-2.5-flash' } = args;
+
+  if (!imageData && !imageUrl) {
+    return {
+      summary: '',
+      subject: '',
+      environment: '',
+      composition: '',
+      camera: '',
+      lighting: '',
+      colors: '',
+      materials_textures: '',
+      style: '',
+      details: [],
+      error: 'No image data or URL provided'
+    };
+  }
+
+  const systemPrompt = `You are an expert visual analyst specializing in detailed image description for AI prompt generation. Your task is to analyze images with maximum precision and fidelity, breaking down every visual element that would be needed to recreate the image accurately.
+
+CRITICAL INSTRUCTIONS:
+- Analyze the image systematically: start with the main subject, then environment, composition, technical aspects, and stylistic elements
+- Be extremely specific and detailed - vague descriptions lead to poor prompt generation
+- Use technical photography and art terminology when appropriate (e.g., "shallow depth of field", "golden hour lighting", "rule of thirds composition")
+- Describe colors precisely (e.g., "warm beige" not just "beige", "deep navy blue" not just "blue")
+- Note textures, materials, and surface qualities explicitly
+- Identify camera angles, focal lengths, and perspective accurately
+- Describe lighting conditions in detail: source, direction, quality, color temperature
+- For videos: analyze motion, camera movement, and pacing carefully
+- NEVER guess brand names, logos, or copyrighted content
+- Return ONLY valid JSON - no markdown, no commentary, no explanations`;
+
+  const userPrompt = `Analyze the provided ${assetType} with extreme detail and return a comprehensive structured description.
+
+ANALYSIS GUIDELINES:
+1. SUBJECT: Describe the main subject(s) in detail - what they are, their appearance, pose, expression, clothing, accessories, any distinguishing features
+2. ENVIRONMENT: Describe the location/background precisely - indoor/outdoor, specific setting, spatial relationships, background elements, depth
+3. COMPOSITION: Analyze framing (close-up, medium, wide), camera angle (eye-level, high-angle, low-angle, bird's-eye, worm's-eye), focal point, foreground/midground/background layers, use of rule of thirds or other compositional techniques
+4. CAMERA: Estimate lens type (wide-angle 14-35mm, standard 35-85mm, telephoto 85mm+), depth of field (shallow/bokeh, deep/sharp throughout), perspective (normal, distorted, compressed), shot type (extreme close-up, close-up, medium shot, wide shot, establishing shot)
+5. LIGHTING: Describe light source (natural sunlight, studio lights, window light, artificial), direction (front, side, back, rim, top, bottom), quality (soft/diffused, hard/direct, mixed), time of day if applicable, color temperature (warm, cool, neutral), shadows and highlights
+6. COLORS: Identify dominant color palette, color harmony (monochromatic, complementary, analogous, triadic), saturation levels, color temperature, specific color names
+7. MATERIALS_TEXTURES: Describe visible textures (smooth, rough, glossy, matte, metallic, fabric, wood grain, etc.), materials present, surface qualities
+8. STYLE: Identify if it's photography, 3D render, illustration, digital art, realism level (hyper-realistic, realistic, stylized, abstract), artistic style if applicable
+9. DETAILS: List important small details that contribute to the overall image - reflections, patterns, small objects, environmental details, atmospheric effects
+${assetType === 'video' ? `10. MOTION: Describe subject movement, speed, direction, type of motion
+11. CAMERA_MOTION: Identify camera movement (static, pan, tilt, dolly, tracking, handheld, crane, drone)
+12. PACE: Describe pacing (slow/contemplative, medium/normal, fast/dynamic)` : ''}
+
+Return JSON with this exact structure:
+{
+  "summary": "1-2 comprehensive sentences summarizing the entire scene",
+  "subject": "Detailed description of main subject(s) - be specific about appearance, pose, expression, clothing, accessories",
+  "environment": "Precise location/background description - indoor/outdoor, specific setting, spatial context, background elements",
+  "composition": "Detailed composition analysis - framing, camera angle, focal point, foreground/background layers, compositional techniques",
+  "camera": "Technical camera details - estimated lens type and focal length, depth of field, perspective, shot type",
+  "lighting": "Comprehensive lighting description - source, direction, quality, color temperature, shadows, highlights, time of day",
+  "colors": "Detailed color analysis - dominant palette, color harmony, saturation, specific color names",
+  "materials_textures": "Specific textures and materials visible - be precise about surface qualities",
+  "style": "Artistic style identification - photo/3d/illustration, realism level, artistic style if applicable",
+  "details": ["List of important small details", "that contribute to the image", "be specific and comprehensive"],
+  ${assetType === 'video' ? `"for_video_only": {
+    "motion": "Detailed description of subject movement - type, speed, direction",
+    "camera_motion": "Specific camera movement type - pan/tilt/dolly/tracking/handheld/static/crane/drone",
+    "pace": "Pacing description - slow/medium/fast with context"
+  }` : ''}
+}
+
+Be extremely detailed and specific in every field.`;
+
+  try {
+    const key = bearer || process.env.GEMINI_API_KEY;
+    if (!key) throw new Error('No Gemini API key available');
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${key}`;
+
+    const parts: any[] = [{ text: systemPrompt + '\n\n' + userPrompt }];
+
+    if (imageData) {
+      const m = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (m) {
+        parts.push({
+          inline_data: {
+            mime_type: `image/${m[1]}`,
+            data: m[2]
+          }
+        });
+      }
+    } else if (imageUrl) {
+      parts.push({ fileData: { fileUri: imageUrl } });
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
+      })
+    });
+
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(`Gemini Vision API error (${response.status}): ${t.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    let jsonText = String(text).trim();
+    const jsonMatch = jsonText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+      if (jsonMatch) jsonText = jsonMatch[1];
+
+    const parsed = JSON.parse(jsonText);
+
+    return {
+      summary: parsed.summary || '',
+      subject: parsed.subject || '',
+      environment: parsed.environment || '',
+      composition: parsed.composition || '',
+      camera: parsed.camera || '',
+      lighting: parsed.lighting || '',
+      colors: parsed.colors || '',
+      materials_textures: parsed.materials_textures || '',
+      style: parsed.style || '',
+      details: Array.isArray(parsed.details) ? parsed.details : [],
+      for_video_only: assetType === 'video' ? parsed.for_video_only : undefined
+    };
+  } catch (error: any) {
+    return {
+      summary: '',
+      subject: '',
+      environment: '',
+      composition: '',
+      camera: '',
+      lighting: '',
+      colors: '',
+      materials_textures: '',
+      style: '',
+      details: [],
+      error: error?.message || 'Vision caption generation failed'
+    };
+  }
+}
+
+export async function generateImagePrompt(args: PromptWriterArgs): Promise<PromptWriterOutput> {
+  const {
+    caption,
+    platform,
+    assetType,
+    minWords,
+    stylePolicy,
+    negativePolicy,
+    provider,
+    bearer,
+    geminiModel = 'gemini-2.5-flash',
+    mistralModel = 'mistral-large-latest',
+    groqModel = 'meta-llama/llama-4-scout-17b-16e-instruct'
+  } = args;
+
+  if (caption.error) {
+    return { prompt: '', negative_prompt: '', title: '', keywords: [], error: `Caption failed: ${caption.error}` };
+  }
+
+  const systemPrompt = `You are an expert prompt engineer specializing in reverse-engineering visual content into highly detailed, accurate AI image generation prompts. Your goal is to create prompts that will recreate the exact same scene, composition, lighting, and style as the analyzed image.
+
+CORE PRINCIPLES:
+1. ACCURACY FIRST: The prompt must accurately reflect every detail from the visual analysis
+2. TECHNICAL PRECISION: Use proper photography, art, and technical terminology
+3. STRUCTURED APPROACH: Organize the prompt logically: subject → environment → composition → technical → style
+4. SPECIFICITY: Be extremely specific - vague terms produce poor results
+5. COMMERCIAL SAFETY: Ensure all content is stock-photo safe (no brands, logos, copyrighted content)
+
+PROMPT STRUCTURE (follow this order):
+1. MAIN SUBJECT: Start with the primary subject(s) - be specific about appearance, pose, expression, clothing, accessories
+2. ENVIRONMENT & BACKGROUND: Describe the setting, location, background elements, spatial relationships
+3. COMPOSITION & FRAMING: Specify camera angle, shot type, framing, focal point, foreground/background relationships
+4. TECHNICAL CAMERA DETAILS: Lens type, focal length, depth of field, perspective, aperture if relevant
+5. LIGHTING: Comprehensive lighting description - source, direction, quality, color temperature, shadows, highlights
+6. COLORS & PALETTE: Dominant colors, color harmony, saturation, specific color names
+7. MATERIALS & TEXTURES: Visible textures, materials, surface qualities
+8. STYLE & MOOD: Artistic style, realism level, mood, atmosphere, aesthetic qualities
+9. DETAILS & REFINEMENTS: Important small details, atmospheric effects, finishing touches
+${assetType === 'video' ? `10. MOTION & MOVEMENT: Subject motion, camera movement, pacing` : ''}
+
+PROMPT WRITING BEST PRACTICES:
+- Use commas to separate related concepts, periods to separate distinct ideas
+- Place the most important elements first (subject, then environment, then technical details)
+- Use descriptive adjectives and specific nouns (e.g., "vibrant emerald green" not "green")
+- Include technical terms when relevant (e.g., "85mm portrait lens", "f/2.8 aperture", "golden hour")
+- Balance detail with readability - aim for natural flow
+- Use parentheses for optional clarifications or emphasis
+- Avoid redundancy but don't sacrifice important details
+
+EXAMPLE OF EXCELLENT PROMPT STRUCTURE:
+"A professional portrait of a young woman with shoulder-length auburn hair, wearing a navy blue blazer, smiling warmly, sitting at a modern glass desk in a bright contemporary office with floor-to-ceiling windows, shot from eye-level at medium distance, using an 85mm portrait lens with shallow depth of field creating soft bokeh background, natural window light from camera-left creating soft directional lighting with gentle shadows, warm color palette dominated by navy blue and cream tones, professional corporate aesthetic, high-quality commercial photography style, sharp focus on subject with background slightly blurred"
+
+HARD RULES:
+- Output ONLY valid JSON (no markdown, no commentary, no explanations)
+- The "prompt" must be at least ${minWords} words - be comprehensive and detailed
+- Do NOT include any brand names, logos, trademarks, artist names, or copyrighted character names
+- Do NOT include visible text instructions inside the scene (no "add text", no "logo", no "watermark")
+- Do NOT use placeholder text or vague descriptions - be specific and concrete
+- The prompt must be a single, flowing text string (not a list or bullet points)
+- Also return a "negative_prompt" focused on stock-safety and quality control
+
+NEGATIVE PROMPT GUIDELINES:
+The negative prompt should exclude: text, watermark, logo, signature, brand names, artifacts, blur, noise, grain, compression artifacts, extra limbs, deformed anatomy, bad proportions, oversaturation, undersaturation, low quality, jpeg artifacts, pixelation, distortion, chromatic aberration, lens flare (unless present in original), double exposure (unless intentional), and any other quality issues.
+
+JSON SCHEMA:
+{
+  "prompt": "string (comprehensive, detailed, at least ${minWords} words)",
+  "negative_prompt": "string (stock-safety and quality exclusions)",
+  "title": "string (SEO-friendly, <= 70 characters)",
+  "keywords": ["string", ...] (30-45 single-word keywords, lowercase, no duplicates)
+}`;
+
+  const captionJson = JSON.stringify(caption, null, 2);
+
+  const userPrompt = `Generate a highly detailed, accurate recreation prompt based on the visual analysis provided below.
+
+TASK: Transform the structured visual description into a comprehensive, flowing prompt that will recreate the exact same image when used with an AI image generator.
+
+PLATFORM CONTEXT: ${platform}
+ASSET TYPE: ${assetType}
+MINIMUM WORDS: ${minWords} (be comprehensive - this is a minimum, not a target)
+STYLE POLICY: ${stylePolicy}
+NEGATIVE POLICY: ${negativePolicy}
+
+VISUAL ANALYSIS DATA:
+${captionJson}
+
+INSTRUCTIONS FOR PROMPT GENERATION:
+
+1. SUBJECT TRANSFORMATION:
+   - Convert the "subject" field into a detailed, specific description
+   - Include all details: appearance, pose, expression, clothing, accessories
+   - Be specific about age, gender, ethnicity (if clearly visible), body type, hair, etc.
+   - For objects: describe size, shape, material, condition, position
+
+2. ENVIRONMENT INTEGRATION:
+   - Transform "environment" into a vivid scene description
+   - Include spatial relationships, depth, background elements
+   - Specify indoor/outdoor, time of day, weather if relevant
+   - Describe the setting with specific details
+
+3. COMPOSITION TRANSLATION:
+   - Convert "composition" analysis into camera and framing instructions
+   - Specify exact camera angle, shot type, framing
+   - Describe how foreground/background elements relate
+   - Include compositional techniques if relevant (rule of thirds, leading lines, etc.)
+
+4. TECHNICAL CAMERA DETAILS:
+   - Use the "camera" field to specify lens type, focal length, depth of field
+   - Include perspective and shot type information
+   - Add aperture settings if depth of field is mentioned (e.g., "f/2.8" for shallow DOF)
+
+5. LIGHTING DESCRIPTION:
+   - Transform "lighting" analysis into comprehensive lighting description
+   - Specify light source, direction, quality, color temperature
+   - Include shadow and highlight information
+   - Mention time of day if applicable
+
+6. COLOR PALETTE INTEGRATION:
+   - Use "colors" field to describe the color scheme
+   - Specify dominant colors with precise names
+   - Mention color harmony and saturation levels
+   - Include color temperature (warm/cool)
+
+7. MATERIALS & TEXTURES:
+   - Convert "materials_textures" into specific texture descriptions
+   - Use precise terminology (glossy, matte, rough, smooth, etc.)
+   - Include material types if identifiable
+
+8. STYLE & MOOD:
+   - Transform "style" into artistic style description
+   - Specify realism level, photo style, or art style
+   - Include mood and atmosphere
+   - Add aesthetic qualities
+
+9. DETAILS INTEGRATION:
+   - Incorporate all items from "details" array
+   - Add any important small elements that enhance accuracy
+   - Include atmospheric effects, reflections, patterns
+
+${assetType === 'video' ? `10. MOTION & MOVEMENT:
+   - Use "for_video_only" data to describe motion
+   - Specify subject movement type, speed, direction
+   - Include camera movement details
+   - Describe pacing and rhythm` : ''}
+
+PROMPT QUALITY CHECKLIST:
+✓ Is the prompt at least ${minWords} words? (be comprehensive)
+✓ Does it start with the main subject?
+✓ Are all visual elements from the analysis included?
+✓ Is technical terminology used correctly?
+✓ Are colors described with specific names?
+✓ Is lighting comprehensively described?
+✓ Are camera/technical details included?
+✓ Is the style and mood clearly stated?
+✓ Does it flow naturally as a single text string?
+✓ Is it free of brand names, logos, copyrighted content?
+✓ Is it stock-photo safe?
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object with this structure:
+{
+  "prompt": "Your comprehensive, detailed prompt here (at least ${minWords} words, flowing text)",
+  "negative_prompt": "Stock-safety and quality exclusions based on ${negativePolicy}",
+  "title": "SEO-friendly title (<= 70 characters)",
+  "keywords": ["keyword1", "keyword2", ...] (30-45 keywords, lowercase, no duplicates)
+}
+
+Generate the prompt now, ensuring maximum accuracy and detail.`;
+
+  try {
+    let responseText = '';
+
+    if (provider === 'gemini') {
+      const key = bearer || process.env.GEMINI_API_KEY;
+      if (!key) throw new Error('No Gemini API key available');
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${key}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        })
+      });
+
+      if (!response.ok) {
+        const t = await response.text();
+        throw new Error(`Gemini API error (${response.status}): ${t.substring(0, 200)}`);
+      }
+
+      const data = await response.json();
+      responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } else if (provider === 'groq') {
+      const key = bearer || process.env.GROQ_API_KEY;
+      if (!key) throw new Error('No Groq API key available');
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model: groqModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 2048,
+          response_format: { type: 'json_object' }
+        })
+      });
+
+      if (!response.ok) {
+        const t = await response.text();
+        throw new Error(`Groq API error (${response.status}): ${t.substring(0, 200)}`);
+      }
+
+      const data = await response.json();
+      responseText = data?.choices?.[0]?.message?.content || '';
+    } else {
+      const key = bearer || process.env.MISTRAL_API_KEY;
+      if (!key) throw new Error('No Mistral API key available');
+
+      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model: mistralModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 2048
+        })
+      });
+
+      if (!response.ok) {
+        const t = await response.text();
+        throw new Error(`Mistral API error (${response.status}): ${t.substring(0, 200)}`);
+      }
+
+      const data = await response.json();
+      responseText = data?.choices?.[0]?.message?.content || '';
+    }
+
+    let jsonText = String(responseText).trim();
+    const jsonMatch = jsonText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+    if (jsonMatch) jsonText = jsonMatch[1];
+
+    const parsed = JSON.parse(jsonText);
+    const prompt = String(parsed.prompt || '').trim();
+    
+    // Count words for validation
+    const wordCount = prompt.split(/\s+/).filter(word => word.length > 0).length;
+
+    return {
+      prompt,
+      negative_prompt: String(parsed.negative_prompt || negativePolicy).trim(),
+      title: String(parsed.title || '').trim().slice(0, 70),
+      keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 45) : [],
+      error: wordCount < minWords ? `Warning: Prompt is shorter than minimum (${wordCount}/${minWords} words)` : undefined
+    };
+  } catch (error: any) {
+    return {
+      prompt: '',
+      negative_prompt: '',
+      title: '',
+      keywords: [],
+      error: error?.message || 'Prompt generation failed'
+    };
+  }
 }

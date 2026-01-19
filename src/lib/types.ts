@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 
 export const PlatformEnum = z.enum(['general', 'adobe', 'shutterstock']);
 export const AssetTypeEnum = z.enum(['auto','photo','illustration','vector','3d','icon','video']);
@@ -59,5 +59,6 @@ export const FormSchema = z.object({
 });
 
 export type FormState = z.infer<typeof FormSchema>;
+
 
 

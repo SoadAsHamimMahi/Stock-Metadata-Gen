@@ -8,6 +8,8 @@ export type Row = {
   assetType: 'photo'|'illustration'|'vector'|'3d'|'icon'|'video';
   extension: string;
   error?: string; // Optional error message for failed generations
+  generatedPrompt?: string; // Optional image generation prompt
+  negativePrompt?: string; // Optional negative prompt
 };
 
 type GenerationPlatform = 'general' | 'adobe' | 'shutterstock';
@@ -72,6 +74,35 @@ export function toCSV(
       r.keywords?.length ?? kwCount
     ].join(',')
   );
+
+  return [header, ...lines].join('\n');
+}
+
+/**
+ * Export prompts to CSV format
+ * @param rows - Array of Row objects with prompt data
+ * @returns CSV string with prompts
+ */
+export function toPromptCSV(rows: Row[]): string {
+  const esc = (s: string) => `"${(s || '').replaceAll('"','""')}"`;
+
+  const header = [
+    'filename',
+    'generated_prompt',
+    'prompt_length',
+    'extension'
+  ].join(',');
+
+  const lines = rows
+    .filter(r => r.generatedPrompt) // Only include rows with prompts
+    .map(r =>
+      [
+        esc(r.filename),
+        esc(r.generatedPrompt || ''),
+        (r.generatedPrompt || '').length,
+        r.extension
+      ].join(',')
+    );
 
   return [header, ...lines].join('\n');
 }

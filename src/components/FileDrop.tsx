@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Row } from '@/lib/csv';
@@ -225,7 +225,7 @@ export default function FileDrop({
                 format: 'jpeg'
               });
               compressedSize = compressedFile.size;
-              console.log(`📊 Upload compression for ${file.name}: Original=${originalSize} bytes, Compressed=${compressedSize} bytes (${((1 - compressedSize / originalSize) * 100).toFixed(1)}% reduction)`);
+              console.log(`ðŸ“Š Upload compression for ${file.name}: Original=${originalSize} bytes, Compressed=${compressedSize} bytes (${((1 - compressedSize / originalSize) * 100).toFixed(1)}% reduction)`);
             } 
             // For videos: extract frame and estimate size (frame is already compressed)
             else if (isVideoFile(file)) {
@@ -236,7 +236,7 @@ export default function FileDrop({
                 const base64 = frameData.slice(commaIndex + 1);
                 const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
                 compressedSize = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-                console.log(`📊 Upload compression for ${file.name} (video frame): Original=${originalSize} bytes, Compressed frame=${compressedSize} bytes (${((1 - compressedSize / originalSize) * 100).toFixed(1)}% reduction)`);
+                console.log(`ðŸ“Š Upload compression for ${file.name} (video frame): Original=${originalSize} bytes, Compressed frame=${compressedSize} bytes (${((1 - compressedSize / originalSize) * 100).toFixed(1)}% reduction)`);
               }
             }
           } catch (error) {
@@ -310,7 +310,7 @@ export default function FileDrop({
       {uploadError && (
         <div className="mb-4 p-3 bg-error/20 border border-error/40 rounded-lg text-error text-sm flex items-center justify-between">
           <span>✗ {uploadError}</span>
-          <button onClick={() => setUploadError(null)} className="text-error hover:text-error/80 transition-colors">×</button>
+          <button onClick={() => setUploadError(null)} className="text-error hover:text-error/80 transition-colors">Ã—</button>
         </div>
       )}
       
@@ -351,7 +351,7 @@ export default function FileDrop({
               <span className="font-semibold line-through text-text-tertiary/60">
                 {formatSize(totalOriginalSize)}
               </span>
-              {' → '}
+              {' â†’ '}
               <span className="font-semibold text-green-bright">
                 {formatSize(totalCompressedSize)}
               </span>
@@ -493,7 +493,7 @@ export default function FileDrop({
                   </>
                 ) : (
                   <>
-                    <span>🔁</span>
+                    <span>🔄</span>
                     <span>Retry Failed ({failedFiles.length})</span>
                   </>
                 )}
@@ -539,10 +539,10 @@ export default function FileDrop({
           </div>
           {!hideSetupUI && showTransparentPngHint && (
             <div className="text-xs text-amber-100 bg-amber-500/10 border border-amber-400/40 rounded-md px-3 py-2 flex items-start gap-2">
-              <span>⚠️</span>
+              <span>âš ï¸</span>
               <span>
                 PNG file detected. If this artwork has a transparent background, enable
-                <span className="font-semibold text-amber-200"> “isolated on transparent background”</span>{' '}
+                <span className="font-semibold text-amber-200"> "isolated on transparent background"</span>{' '}
                 in the File Type Attributes panel for the most accurate titles and keywords.
               </span>
             </div>
@@ -813,7 +813,7 @@ function FileCard({
                     <span className="line-through text-text-tertiary/50">
                       {formatSize(file.originalSize)}
                     </span>
-                    {' → '}
+                    {' â†’ '}
                     <span className="text-green-bright font-semibold">
                       {formatSize(file.size)}
                     </span>
@@ -848,124 +848,192 @@ function FileCard({
 
         {/* Metadata Section */}
         <div className="space-y-3">
-          {/* Title Section */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="label text-text-secondary">Title</label>
-              <div className="flex items-center gap-2">
-                {retryInfo && (
-                  <RetryIndicator
-                    attempt={retryInfo.attempt}
-                    maxAttempts={retryInfo.maxAttempts}
-                    errorType={retryInfo.errorType as 'overloaded' | 'rate-limit' | 'server-error' | undefined}
-                    className="text-xs"
-                  />
-                )}
-                {row && !isGenerating && !retryInfo && <span className="text-xs text-text-tertiary">{title.length} chars</span>}
-                {isGenerating && !retryInfo && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-green-bright animate-pulse">{row ? 'Regenerating...' : 'Generating...'}</span>
-                    {workerId !== undefined && (
-                      <span className="text-xs px-2 py-0.5 bg-green-accent/20 text-green-bright rounded border border-green-accent/30 font-semibold">
-                        API{workerId + 1}
-                      </span>
+          {/* Show prompt if available, otherwise show title/keywords */}
+          {row?.generatedPrompt ? (
+            /* Prompt Mode Display */
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="label text-text-secondary">Generated Prompt</label>
+                <div className="flex items-center gap-2">
+                  {retryInfo && (
+                    <RetryIndicator
+                      attempt={retryInfo.attempt}
+                      maxAttempts={retryInfo.maxAttempts}
+                      errorType={retryInfo.errorType as 'overloaded' | 'rate-limit' | 'server-error' | undefined}
+                      className="text-xs"
+                    />
+                  )}
+                  {row && !isGenerating && !retryInfo && <span className="text-xs text-text-tertiary">{row.generatedPrompt.length} chars</span>}
+                  {isGenerating && !retryInfo && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-green-bright animate-pulse">{row ? 'Regenerating...' : 'Generating...'}</span>
+                      {workerId !== undefined && (
+                        <span className="text-xs px-2 py-0.5 bg-green-accent/20 text-green-bright rounded border border-green-accent/30 font-semibold">
+                          API{workerId + 1}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {isGenerating || retryInfo ? (
+                <div className="textarea min-h-[150px] flex items-center justify-center bg-dark-surface/30 border border-green-accent/20 rounded-lg">
+                  <div className="flex items-center gap-2 text-text-tertiary">
+                    {retryInfo ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+                        <RetryIndicator
+                          attempt={retryInfo.attempt}
+                          maxAttempts={retryInfo.maxAttempts}
+                          errorType={retryInfo.errorType as 'overloaded' | 'rate-limit' | 'server-error' | undefined}
+                          className="text-sm"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-4 h-4 border-2 border-green-accent border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm">{row ? 'Regenerating prompt...' : 'Generating prompt...'}</span>
+                      </>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <textarea
+                  className="textarea min-h-[150px] bg-green-500/10 border-green-500/30"
+                  value={row.generatedPrompt}
+                  readOnly
+                  placeholder="Prompt will appear here..."
+                />
+              )}
+              {row && (
+                <div className="flex gap-2 mt-2">
+                  <CopyBtn label="Copy Prompt" text={row.generatedPrompt} />
+                </div>
+              )}
             </div>
-            {isGenerating || retryInfo ? (
-              <div className="textarea min-h-[80px] flex items-center justify-center bg-dark-surface/30 border border-green-accent/20 rounded-lg">
-                <div className="flex items-center gap-2 text-text-tertiary">
-                  {retryInfo ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            /* Metadata Mode Display */
+            <>
+              {/* Title Section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="label text-text-secondary">Title</label>
+                  <div className="flex items-center gap-2">
+                    {retryInfo && (
                       <RetryIndicator
                         attempt={retryInfo.attempt}
                         maxAttempts={retryInfo.maxAttempts}
                         errorType={retryInfo.errorType as 'overloaded' | 'rate-limit' | 'server-error' | undefined}
-                        className="text-sm"
+                        className="text-xs"
                       />
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-4 h-4 border-2 border-green-accent border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-sm">{row ? 'Regenerating title...' : 'Generating title...'}</span>
-                    </>
-                  )}
+                    )}
+                    {row && !isGenerating && !retryInfo && <span className="text-xs text-text-tertiary">{title.length} chars</span>}
+                    {isGenerating && !retryInfo && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-green-bright animate-pulse">{row ? 'Regenerating...' : 'Generating...'}</span>
+                        {workerId !== undefined && (
+                          <span className="text-xs px-2 py-0.5 bg-green-accent/20 text-green-bright rounded border border-green-accent/30 font-semibold">
+                            API{workerId + 1}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <textarea
-                className={`textarea min-h-[80px] transition-all duration-300 ${
-                  titleAnimated && row?.title 
-                    ? 'animate-fade-in-up' 
-                    : ''
-                }`}
-                value={row ? title : ''}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={row ? "Title appears here..." : "Waiting to generate..."}
-                disabled={!row}
-                style={{
-                  animation: titleAnimated && row?.title ? 'fadeInUp 0.5s ease-out' : undefined
-                }}
-              />
-            )}
-            {row && (
-              <div className="flex gap-2 mt-2">
-                <CopyBtn label="Copy Title" text={title} />
-              </div>
-            )}
-          </div>
-
-          {/* Keywords Section */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="label text-text-secondary">
-                Keywords ({row ? row.keywords.length : 0})
-              </label>
-              {isGenerating && !row && (
-                <span className="text-xs text-green-bright animate-pulse">Generating...</span>
-              )}
-            </div>
-            {isGenerating ? (
-              <div className="min-h-[60px] p-3 border border-green-accent/20 rounded-lg bg-dark-surface/30 flex items-center justify-center">
-                <div className="flex items-center gap-2 text-text-tertiary">
-                  <div className="w-4 h-4 border-2 border-green-accent border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-sm">{row ? 'Regenerating keywords...' : 'Generating keywords...'}</span>
-                </div>
-              </div>
-            ) : row && row.keywords.length > 0 ? (
-              <>
-                <div className="flex flex-wrap gap-2 mb-2 min-h-[60px] p-3 border border-green-accent/20 rounded-lg bg-dark-surface/30">
-                  {revealedKeywords.map((kw, i) => (
-                    <span
-                      key={`${kw}-${i}`}
-                      className="keyword-tag animate-fade-in-scale"
-                      style={{
-                        animation: `fadeInScale 0.3s ease-out ${i * 0.08}s both`
-                      }}
-                    >
-                      {kw}
-                    </span>
-                  ))}
-                  {/* Show placeholder for keywords not yet revealed */}
-                  {row.keywords.length > revealedKeywords.length && (
-                    <span className="keyword-tag opacity-30 border-dashed">
-                      ...
-                    </span>
-                  )}
-                </div>
-                {revealedKeywords.length === row.keywords.length && (
-                  <CopyBtn label="Copy Keywords" text={row.keywords.join('; ')} />
+                {isGenerating || retryInfo ? (
+                  <div className="textarea min-h-[80px] flex items-center justify-center bg-dark-surface/30 border border-green-accent/20 rounded-lg">
+                    <div className="flex items-center gap-2 text-text-tertiary">
+                      {retryInfo ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+                          <RetryIndicator
+                            attempt={retryInfo.attempt}
+                            maxAttempts={retryInfo.maxAttempts}
+                            errorType={retryInfo.errorType as 'overloaded' | 'rate-limit' | 'server-error' | undefined}
+                            className="text-sm"
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-4 h-4 border-2 border-green-accent border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-sm">{row ? 'Regenerating title...' : 'Generating title...'}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <textarea
+                    className={`textarea min-h-[80px] transition-all duration-300 ${
+                      titleAnimated && row?.title 
+                        ? 'animate-fade-in-up' 
+                        : ''
+                    }`}
+                    value={row ? title : ''}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={row ? "Title appears here..." : "Waiting to generate..."}
+                    disabled={!row}
+                    style={{
+                      animation: titleAnimated && row?.title ? 'fadeInUp 0.5s ease-out' : undefined
+                    }}
+                  />
                 )}
-              </>
-            ) : (
-              <div className="min-h-[60px] p-3 border border-green-accent/20 rounded-lg bg-dark-surface/30 text-text-tertiary text-sm flex items-center justify-center">
-                Keywords will appear here...
+                {row && (
+                  <div className="flex gap-2 mt-2">
+                    <CopyBtn label="Copy Title" text={title} />
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* Keywords Section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="label text-text-secondary">
+                    Keywords ({row ? row.keywords.length : 0})
+                  </label>
+                  {isGenerating && !row && (
+                    <span className="text-xs text-green-bright animate-pulse">Generating...</span>
+                  )}
+                </div>
+                {isGenerating ? (
+                  <div className="min-h-[60px] p-3 border border-green-accent/20 rounded-lg bg-dark-surface/30 flex items-center justify-center">
+                    <div className="flex items-center gap-2 text-text-tertiary">
+                      <div className="w-4 h-4 border-2 border-green-accent border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm">{row ? 'Regenerating keywords...' : 'Generating keywords...'}</span>
+                    </div>
+                  </div>
+                ) : row && row.keywords.length > 0 ? (
+                  <>
+                    <div className="flex flex-wrap gap-2 mb-2 min-h-[60px] p-3 border border-green-accent/20 rounded-lg bg-dark-surface/30">
+                      {revealedKeywords.map((kw, i) => (
+                        <span
+                          key={`${kw}-${i}`}
+                          className="keyword-tag animate-fade-in-scale"
+                          style={{
+                            animation: `fadeInScale 0.3s ease-out ${i * 0.08}s both`
+                          }}
+                        >
+                          {kw}
+                        </span>
+                      ))}
+                      {/* Show placeholder for keywords not yet revealed */}
+                      {row.keywords.length > revealedKeywords.length && (
+                        <span className="keyword-tag opacity-30 border-dashed">
+                          ...
+                        </span>
+                      )}
+                    </div>
+                    {revealedKeywords.length === row.keywords.length && (
+                      <CopyBtn label="Copy Keywords" text={row.keywords.join('; ')} />
+                    )}
+                  </>
+                ) : (
+                  <div className="min-h-[60px] p-3 border border-green-accent/20 rounded-lg bg-dark-surface/30 text-text-tertiary text-sm flex items-center justify-center">
+                    Keywords will appear here...
+                  </div>
+                )}
+              </div>
+            </>
+          )}
           
           {/* Generate/Regenerate Button - Bottom Right */}
           {onRegenerate && (
@@ -1023,10 +1091,11 @@ function CopyBtn({ label, text }: { label: string; text: string }) {
       disabled={!canCopy}
       title={`Copy ${label}`}
     >
-      <span className={copied ? 'animate-bounce-in' : ''}>{copied ? '✓' : '📋'}</span>
+      <span className={copied ? 'animate-bounce-in' : ''}>{copied ? 'âœ“' : 'ðŸ“‹'}</span>
       {copied ? 'Copied!' : label}
     </button>
   );
 }
+
 
 

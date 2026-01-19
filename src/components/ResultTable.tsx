@@ -79,43 +79,71 @@ function ResultCard({
         </div>
 
         <div className="md:col-span-2 space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="label">T Title</label>
-              <span className="text-xs text-ink/60">{title.length} characters</span>
+          {/* Show prompts if available, otherwise show title/keywords */}
+          {row.generatedPrompt ? (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="label">Generated Prompt</label>
+                <span className="text-xs text-ink/60">{row.generatedPrompt.length} characters</span>
+              </div>
+              <textarea
+                className="textarea min-h-[150px] bg-green-500/10 border-green-500/30"
+                value={row.generatedPrompt}
+                readOnly
+              />
+              <div className="flex gap-2 mt-2">
+                <CopyBtn label="Copy Prompt" text={row.generatedPrompt} />
+                {onRegenerate && (
+                  <button
+                    className="btn bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm"
+                    onClick={() => onRegenerate(row.filename)}
+                  >
+                    Regenerate
+                  </button>
+                )}
+              </div>
             </div>
-            <textarea
-              className="textarea min-h-[60px]"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <div className="flex gap-2 mt-2">
-              <CopyBtn label="Copy Title" text={title} />
-              {onRegenerate && (
-                <button
-                  className="btn bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm"
-                  onClick={() => onRegenerate(row.filename)}
-                >
-                  Regenerate
-                </button>
-              )}
-            </div>
-          </div>
+          ) : (
+            <>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="label">T Title</label>
+                  <span className="text-xs text-ink/60">{title.length} characters</span>
+                </div>
+                <textarea
+                  className="textarea min-h-[60px]"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+                <div className="flex gap-2 mt-2">
+                  <CopyBtn label="Copy Title" text={title} />
+                  {onRegenerate && (
+                    <button
+                      className="btn bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm"
+                      onClick={() => onRegenerate(row.filename)}
+                    >
+                      Regenerate
+                    </button>
+                  )}
+                </div>
+              </div>
 
-          <div>
-            <label className="label mb-2">Keywords ({row.keywords.length})</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {row.keywords.map((kw, i) => (
-                <span
-                  key={i}
-                  className="px-2 py-1 bg-warm/20 text-sm rounded-md border border-warm/40 text-ink"
-                >
-                  {kw}
-                </span>
-              ))}
-            </div>
-            <CopyBtn label="Copy Keywords" text={row.keywords.join(',    ')} />
-          </div>
+              <div>
+                <label className="label mb-2">Keywords ({row.keywords.length})</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {row.keywords.map((kw, i) => (
+                    <span
+                      key={i}
+                      className="px-2 py-1 bg-warm/20 text-sm rounded-md border border-warm/40 text-ink"
+                    >
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+                <CopyBtn label="Copy Keywords" text={row.keywords.join(',    ')} />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

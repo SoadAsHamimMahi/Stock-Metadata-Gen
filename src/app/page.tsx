@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import APIControls from '@/components/APIControls';
@@ -8,7 +8,7 @@ import ResultTable from '@/components/ResultTable';
 import ErrorToastComponent, { type ErrorToast } from '@/components/ErrorToast';
 import Analytics from '@/components/Analytics';
 import CompletionModal, { type CompletionStats } from '@/components/CompletionModal';
-import { toCSV } from '@/lib/csv';
+import { toCSV, toPromptCSV } from '@/lib/csv';
 import { getJSON, setJSON, getDecryptedJSON } from '@/lib/util';
 import { trackEvent } from '@/lib/analytics';
 import { scoreTitleQuality } from '@/lib/util';
@@ -384,25 +384,51 @@ export default function Page() {
   // Server rehydration removed - files are now stored client-side only
 
   const onExportCSV = () => {
-    const csv = toCSV(rows, form.titleLen, form.descLen, form.keywordCount, form.platform);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const filename =
-      form.platform === 'adobe'
-        ? 'StockCSV_Adobe.csv'
-        : form.platform === 'shutterstock'
-          ? 'StockCSV_ShutterStock.csv'
-          : 'StockCSV_Gen.csv';
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    const isPromptMode = form.uiTab === 'prompt';
+    
+    if (isPromptMode) {
+      const csv = toPromptCSV(rows);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ImagePrompts.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } else {
+      const csv = toCSV(rows, form.titleLen, form.descLen, form.keywordCount, form.platform);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const filename =
+        form.platform === 'adobe'
+          ? 'StockCSV_Adobe.csv'
+          : form.platform === 'shutterstock'
+            ? 'StockCSV_ShutterStock.csv'
+            : 'StockCSV_Gen.csv';
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
   };
 
   const onExportZIP = async () => {
+    // ZIP export is only available in metadata mode
+    if (form.uiTab === 'prompt') {
+      setError({
+        id: Date.now().toString(),
+        message: 'ZIP export is only available in Metadata mode.',
+        severity: 'info',
+        duration: 3000
+      });
+      return;
+    }
+    
     try {
       // Filter out rows with errors
       const validRows = rows.filter(r => !r.error);
@@ -564,7 +590,25 @@ export default function Page() {
         }
       }
       
-      const requestPayload = {
+      // Detect mode: prompt or metadata
+      const isPromptMode = form.uiTab === 'prompt';
+      
+      // Build request payload based on mode
+      const requestPayload = isPromptMode ? {
+        // Prompt generation payload
+        imageData: imageData,
+        imageUrl: undefined, // Not using URL for now
+        platform: form.platform,
+        assetType: form.assetType === 'auto' ? 'image' : form.assetType === 'video' ? 'video' : 'image',
+        minWords: 160,
+        stylePolicy: 'microstock-safe',
+        negativePolicy: 'no text, no logo, no watermark',
+        provider: form.model.provider,
+        geminiModel: form.geminiModel,
+        groqModel: form.groqModel,
+        visionBearer: bearerRef.current // For Gemini/Mistral 2-step pipeline
+      } : {
+        // Existing metadata generation payload
         platform: form.platform,
         titleLen: form.titleLen,
         descLen: 150,
@@ -598,19 +642,23 @@ export default function Page() {
         userPhotoURL: user?.photoURL || undefined
       };
       
-      console.log(`📤 API Request for ${file.name}:`, {
-        toggleValues: {
-          isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
-          isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
-          isVector: requestPayload.isVector,
-          isIllustration: requestPayload.isIllustration
+      console.log(`📤 API Request for ${file.name} (${isPromptMode ? 'PROMPT' : 'METADATA'} mode):`, {
+        mode: isPromptMode ? 'prompt' : 'metadata',
+        toggleValues: isPromptMode ? {} : {
+          isolatedOnTransparentBackground: (requestPayload as any).isolatedOnTransparentBackground,
+          isolatedOnWhiteBackground: (requestPayload as any).isolatedOnWhiteBackground,
+          isVector: (requestPayload as any).isVector,
+          isIllustration: (requestPayload as any).isIllustration
         }
       });
       
       // Use assigned key if provided (for parallel workers), otherwise fall back to bearerRef
       const apiKey = assignedKey || bearerRef.current;
       
-      const res = await fetch('/api/generate', {
+      // Route to appropriate API endpoint based on mode
+      const apiEndpoint = isPromptMode ? '/api/prompt/image-to-prompt' : '/api/generate';
+      
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -654,7 +702,17 @@ export default function Page() {
           }
           
           // Create error row with quota exhaustion message
-          const errorRow: Row = {
+          const isPromptMode = form.uiTab === 'prompt';
+          const errorRow: Row = isPromptMode ? {
+            filename: file.name,
+            platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+            title: '', // Empty for prompt mode
+            description: '', // Empty for prompt mode
+            keywords: [], // Empty for prompt mode
+            assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+            extension: file.ext || '',
+            error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
+          } : {
             filename: file.name,
             platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
             title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
@@ -689,7 +747,17 @@ export default function Page() {
         }
         
         // Regular error handling (non-quota errors)
-        const errorRow: Row = {
+        const isPromptMode = form.uiTab === 'prompt';
+        const errorRow: Row = isPromptMode ? {
+          filename: file.name,
+          platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+          title: '', // Empty for prompt mode
+          description: '', // Empty for prompt mode
+          keywords: [], // Empty for prompt mode
+          assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+          extension: file.ext || '',
+          error: errorMsg
+        } : {
           filename: file.name,
           platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
           title: `[ERROR] ${errorMsg}`,
@@ -724,38 +792,121 @@ export default function Page() {
       }
       
       const data = await res.json();
-      if (data.rows && data.rows.length > 0) {
-        const newRow = data.rows[0];
-        allRows.push(newRow);
-        // Update UI immediately after each generation
-        setRows([...allRows]);
-        
-        // Track generation
-        await trackGenerationInFirestore(data.rows.length);
-        
-        // Remove from generating set
-        setGeneratingFiles(prev => {
-          const next = new Set(prev);
-          next.delete(file.name);
-          return next;
-        });
-        // Clear worker ID mapping
-        setFileToWorkerId(prev => {
-          const next = new Map(prev);
-          next.delete(file.name);
-          return next;
-        });
-        unsubscribe();
-        unsubscribeCallbacks.delete(file.name);
-        completedCountRef.current++;
-        // Only count as success if there's no error
-        if (!newRow.error) {
-          setSuccessCount(prev => prev + 1);
-        } else {
+      
+      if (isPromptMode) {
+        // Handle prompt generation response
+        if (data.prompt) {
+          const newRow: Row = {
+            filename: file.name,
+            platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+            title: '', // Empty for prompt mode
+            description: '', // Empty for prompt mode
+            keywords: [], // Empty for prompt mode
+            assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+            extension: file.ext || '',
+            generatedPrompt: data.prompt, // Store the generated prompt
+            negativePrompt: data.negative_prompt, // Store negative prompt (optional)
+            error: data.error
+          };
+          allRows.push(newRow);
+          // Update UI immediately after each generation
+          setRows([...allRows]);
+          
+          // Track generation
+          await trackGenerationInFirestore(1);
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          // Clear worker ID mapping
+          setFileToWorkerId(prev => {
+            const next = new Map(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
+          // Only count as success if there's no error
+          if (!newRow.error) {
+            setSuccessCount(prev => prev + 1);
+          } else {
+            setFailedCount(prev => prev + 1);
+          }
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / files.length) * 100));
+        } else if (data.error) {
+          // Handle prompt generation error
+          const errorRow: Row = {
+            filename: file.name,
+            platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+            title: `[ERROR] ${data.error}`,
+            description: 'Prompt generation failed. Please check your API key and try again.',
+            keywords: [],
+            assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+            extension: file.ext || '',
+            error: data.error
+          };
+          allRows.push(errorRow);
+          setRows([...allRows]);
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          // Clear worker ID mapping
+          setFileToWorkerId(prev => {
+            const next = new Map(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
           setFailedCount(prev => prev + 1);
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / files.length) * 100));
         }
-        const completed = completedCountRef.current;
-        setProcessingProgress(Math.round((completed / files.length) * 100));
+      } else {
+        // Existing metadata handling
+        if (data.rows && data.rows.length > 0) {
+          const newRow = data.rows[0];
+          allRows.push(newRow);
+          // Update UI immediately after each generation
+          setRows([...allRows]);
+          
+          // Track generation
+          await trackGenerationInFirestore(data.rows.length);
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          // Clear worker ID mapping
+          setFileToWorkerId(prev => {
+            const next = new Map(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
+          // Only count as success if there's no error
+          if (!newRow.error) {
+            setSuccessCount(prev => prev + 1);
+          } else {
+            setFailedCount(prev => prev + 1);
+          }
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / files.length) * 100));
+        }
       }
     } catch (fileError: any) {
       unsubscribe();
@@ -793,9 +944,19 @@ export default function Page() {
         }
         
         // Create error row with quota exhaustion message
-      const errorRow: Row = {
-        filename: file.name,
-        platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+        const isPromptMode = form.uiTab === 'prompt';
+        const errorRow: Row = isPromptMode ? {
+          filename: file.name,
+          platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+          title: '', // Empty for prompt mode
+          description: '', // Empty for prompt mode
+          keywords: [], // Empty for prompt mode
+          assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+          extension: file.ext || '',
+          error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
+        } : {
+          filename: file.name,
+          platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
           title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
           description: 'API quota exceeded for this key. This worker has stopped. Other workers will continue.',
           keywords: [],
@@ -860,6 +1021,20 @@ export default function Page() {
 
   const onGenerateAll = async () => {
     if (!files.length) return;
+    
+    // Validate that prompt mode has image/video files
+    if (form.uiTab === 'prompt') {
+      const hasImageOrVideo = files.some(f => f.file && (isImageFile(f.file) || isVideoFile(f.file)));
+      if (!hasImageOrVideo) {
+        setError({
+          id: Date.now().toString(),
+          message: 'Image to Prompt mode requires image or video files. Please upload images/videos or switch to Metadata mode.',
+          severity: 'warning',
+          duration: 5000
+        });
+        return;
+      }
+    }
     
     // Reset exhausted keys when starting fresh generation
     if (form.parallelMode) {
@@ -1206,7 +1381,25 @@ export default function Page() {
         }
       }
       
-      const requestPayload = {
+      // Detect mode: prompt or metadata
+      const isPromptMode = form.uiTab === 'prompt';
+      
+      // Build request payload based on mode
+      const requestPayload = isPromptMode ? {
+        // Prompt generation payload
+        imageData: imageData,
+        imageUrl: undefined, // Not using URL for now
+        platform: form.platform,
+        assetType: form.assetType === 'auto' ? 'image' : form.assetType === 'video' ? 'video' : 'image',
+        minWords: 160,
+        stylePolicy: 'microstock-safe',
+        negativePolicy: 'no text, no logo, no watermark',
+        provider: form.model.provider,
+        geminiModel: form.geminiModel,
+        groqModel: form.groqModel,
+        visionBearer: bearerRef.current // For Gemini/Mistral 2-step pipeline
+      } : {
+        // Existing metadata generation payload
         platform: form.platform,
         titleLen: form.titleLen,
         descLen: 150,
@@ -1240,19 +1433,23 @@ export default function Page() {
         userPhotoURL: user?.photoURL || undefined
       };
       
-      console.log(`📤 API Request (regenerate) for ${file.name}:`, {
-        toggleValues: {
-          isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
-          isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
-          isVector: requestPayload.isVector,
-          isIllustration: requestPayload.isIllustration
+      console.log(`📤 API Request (regenerate) for ${file.name} (${isPromptMode ? 'PROMPT' : 'METADATA'} mode):`, {
+        mode: isPromptMode ? 'prompt' : 'metadata',
+        toggleValues: isPromptMode ? {} : {
+          isolatedOnTransparentBackground: (requestPayload as any).isolatedOnTransparentBackground,
+          isolatedOnWhiteBackground: (requestPayload as any).isolatedOnWhiteBackground,
+          isVector: (requestPayload as any).isVector,
+          isIllustration: (requestPayload as any).isIllustration
         }
       });
       
       // Use assigned key if provided (for parallel workers), otherwise fall back to bearerRef
       const apiKey = assignedKey || bearerRef.current;
       
-      const res = await fetch('/api/generate', {
+      // Route to appropriate API endpoint based on mode
+      const apiEndpoint = isPromptMode ? '/api/prompt/image-to-prompt' : '/api/generate';
+      
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1296,13 +1493,14 @@ export default function Page() {
           }
           
           // Update row with quota exhaustion error
+          const isPromptMode = form.uiTab === 'prompt';
           setRows(prev => {
             const updated = [...prev];
             const idx = updated.findIndex(r => r.filename === file.name);
             if (idx >= 0) {
               updated[idx] = {
                 ...updated[idx],
-                title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
+                title: isPromptMode ? '' : `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`, // Empty title for prompt mode
                 error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
               };
             }
@@ -1325,13 +1523,14 @@ export default function Page() {
         }
         
         // Regular error handling (non-quota errors)
+        const isPromptMode = form.uiTab === 'prompt';
         setRows(prev => {
           const updated = [...prev];
           const idx = updated.findIndex(r => r.filename === file.name);
           if (idx >= 0) {
             updated[idx] = {
               ...updated[idx],
-              title: `[ERROR] ${errorMsg}`,
+              title: isPromptMode ? '' : `[ERROR] ${errorMsg}`, // Empty title for prompt mode
               error: errorMsg
             };
           }
@@ -1354,40 +1553,119 @@ export default function Page() {
       }
       
       const data = await res.json();
-      if (data.rows && data.rows.length > 0) {
-        const newRow = data.rows[0];
-        // Update row progressively
-        setRows(prev => {
-          const updated = [...prev];
-          const idx = updated.findIndex(r => r.filename === file.name);
-          if (idx >= 0) {
-            updated[idx] = newRow;
+      
+      if (isPromptMode) {
+        // Handle prompt generation response
+        if (data.prompt) {
+          const newRow: Row = {
+            filename: file.name,
+            platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+            title: '', // Empty for prompt mode
+            description: '', // Empty for prompt mode
+            keywords: [], // Empty for prompt mode
+            assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+            extension: file.ext || '',
+            generatedPrompt: data.prompt, // Store the generated prompt
+            negativePrompt: data.negative_prompt, // Store negative prompt (optional)
+            error: data.error
+          };
+          // Update row progressively
+          setRows(prev => {
+            const updated = [...prev];
+            const idx = updated.findIndex(r => r.filename === file.name);
+            if (idx >= 0) {
+              updated[idx] = newRow;
+            } else {
+              updated.push(newRow);
+            }
+            return updated;
+          });
+          
+          // Track generation
+          await trackGenerationInFirestore(1);
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
+          // Only count as success if there's no error
+          if (!newRow.error) {
+            setSuccessCount(prev => prev + 1);
           } else {
-            updated.push(newRow);
+            setFailedCount(prev => prev + 1);
           }
-          return updated;
-        });
-        
-        // Track generation
-        await trackGenerationInFirestore(data.rows.length);
-        
-        // Remove from generating set
-        setGeneratingFiles(prev => {
-          const next = new Set(prev);
-          next.delete(file.name);
-          return next;
-        });
-        unsubscribe();
-        unsubscribeCallbacks.delete(file.name);
-        completedCountRef.current++;
-        // Only count as success if there's no error
-        if (!newRow.error) {
-          setSuccessCount(prev => prev + 1);
-        } else {
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
+        } else if (data.error) {
+          // Handle prompt generation error
+          setRows(prev => {
+            const updated = [...prev];
+            const idx = updated.findIndex(r => r.filename === file.name);
+            if (idx >= 0) {
+              updated[idx] = {
+                ...updated[idx],
+                title: `[ERROR] ${data.error}`,
+                error: data.error
+              };
+            }
+            return updated;
+          });
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
           setFailedCount(prev => prev + 1);
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
         }
-        const completed = completedCountRef.current;
-        setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
+      } else {
+        // Existing metadata handling
+        if (data.rows && data.rows.length > 0) {
+          const newRow = data.rows[0];
+          // Update row progressively
+          setRows(prev => {
+            const updated = [...prev];
+            const idx = updated.findIndex(r => r.filename === file.name);
+            if (idx >= 0) {
+              updated[idx] = newRow;
+            } else {
+              updated.push(newRow);
+            }
+            return updated;
+          });
+          
+          // Track generation
+          await trackGenerationInFirestore(data.rows.length);
+          
+          // Remove from generating set
+          setGeneratingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+          unsubscribe();
+          unsubscribeCallbacks.delete(file.name);
+          completedCountRef.current++;
+          // Only count as success if there's no error
+          if (!newRow.error) {
+            setSuccessCount(prev => prev + 1);
+          } else {
+            setFailedCount(prev => prev + 1);
+          }
+          const completed = completedCountRef.current;
+          setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
+        }
       }
     } catch (fileError: any) {
       unsubscribe();
@@ -1425,18 +1703,19 @@ export default function Page() {
         }
         
         // Update row with quota exhaustion error
-      setRows(prev => {
-        const updated = [...prev];
-        const idx = updated.findIndex(r => r.filename === file.name);
-        if (idx >= 0) {
-          updated[idx] = {
-            ...updated[idx],
-              title: `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`,
+        const isPromptMode = form.uiTab === 'prompt';
+        setRows(prev => {
+          const updated = [...prev];
+          const idx = updated.findIndex(r => r.filename === file.name);
+          if (idx >= 0) {
+            updated[idx] = {
+              ...updated[idx],
+              title: isPromptMode ? '' : `[ERROR] API quota exceeded (Worker ${workerId + 1}). Worker stopped.`, // Empty title for prompt mode
               error: `API quota exceeded for Worker ${workerId + 1} (key: ${assignedKey.substring(0, 8)}...). This worker has stopped.`
-          };
-        }
-        return updated;
-      });
+            };
+          }
+          return updated;
+        });
       
       // Remove from generating set
       setGeneratingFiles(prev => {
@@ -1450,13 +1729,14 @@ export default function Page() {
       }
       
       // Regular error handling (non-quota errors)
+      const isPromptMode = form.uiTab === 'prompt';
       setRows(prev => {
         const updated = [...prev];
         const idx = updated.findIndex(r => r.filename === file.name);
         if (idx >= 0) {
           updated[idx] = {
             ...updated[idx],
-            title: `[ERROR] ${errorMsg}`,
+            title: isPromptMode ? '' : `[ERROR] ${errorMsg}`, // Empty title for prompt mode
             error: errorMsg
           };
         }
@@ -1544,7 +1824,25 @@ export default function Page() {
         }
       }
       
-      const requestPayload = {
+      // Detect mode: prompt or metadata
+      const isPromptMode = form.uiTab === 'prompt';
+      
+      // Build request payload based on mode
+      const requestPayload = isPromptMode ? {
+        // Prompt generation payload
+        imageData: imageData,
+        imageUrl: undefined, // Not using URL for now
+        platform: form.platform,
+        assetType: form.assetType === 'auto' ? 'image' : form.assetType === 'video' ? 'video' : 'image',
+        minWords: 160,
+        stylePolicy: 'microstock-safe',
+        negativePolicy: 'no text, no logo, no watermark',
+        provider: form.model.provider,
+        geminiModel: form.geminiModel,
+        groqModel: form.groqModel,
+        visionBearer: bearerRef.current // For Gemini/Mistral 2-step pipeline
+      } : {
+        // Existing metadata generation payload
         platform: form.platform,
         titleLen: form.titleLen,
         descLen: 150,
@@ -1577,16 +1875,14 @@ export default function Page() {
         userPhotoURL: user?.photoURL || undefined
       };
       
-      console.log(`📤 API Request (regenerate) for ${filename}:`, {
-        toggleValues: {
-          isolatedOnTransparentBackground: requestPayload.isolatedOnTransparentBackground,
-          isolatedOnWhiteBackground: requestPayload.isolatedOnWhiteBackground,
-          isVector: requestPayload.isVector,
-          isIllustration: requestPayload.isIllustration
-        }
+      console.log(`📤 API Request (regenerate) for ${filename} (${isPromptMode ? 'PROMPT' : 'METADATA'} mode):`, {
+        mode: isPromptMode ? 'prompt' : 'metadata'
       });
       
-      const res = await fetch('/api/generate', {
+      // Route to appropriate API endpoint based on mode
+      const apiEndpoint = isPromptMode ? '/api/prompt/image-to-prompt' : '/api/generate';
+      
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1597,7 +1893,7 @@ export default function Page() {
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        const errorMsg = errorData.message || errorData.error || 'Failed to regenerate metadata';
+        const errorMsg = errorData.message || errorData.error || `Failed to regenerate ${isPromptMode ? 'prompt' : 'metadata'}`;
         setError({
           id: Date.now().toString(),
           message: errorMsg,
@@ -1606,21 +1902,62 @@ export default function Page() {
         });
         return;
       }
+      
       const data = await res.json();
-      if (data.rows && data.rows.length > 0) {
-        setRows(prev => {
-          const updated = [...prev];
-          const idx = updated.findIndex(r => r.filename === filename);
-          if (idx >= 0) {
-            updated[idx] = data.rows[0];
-          } else {
-            updated.push(data.rows[0]);
-          }
-          return updated;
-        });
-        
-        // Track generation
-        await trackGenerationInFirestore(data.rows.length);
+      
+      if (isPromptMode) {
+        // Handle prompt generation response
+        if (data.prompt) {
+          const newRow: Row = {
+            filename: file.name,
+            platform: form.platform === 'adobe' ? 'Adobe Stock' : form.platform === 'general' ? 'General' : 'Shutterstock',
+            title: '', // Empty for prompt mode
+            description: '', // Empty for prompt mode
+            keywords: [], // Empty for prompt mode
+            assetType: form.assetType === 'auto' ? 'photo' : form.assetType,
+            extension: file.ext || '',
+            generatedPrompt: data.prompt, // Store the generated prompt
+            negativePrompt: data.negative_prompt, // Store negative prompt (optional)
+            error: data.error
+          };
+          setRows(prev => {
+            const updated = [...prev];
+            const idx = updated.findIndex(r => r.filename === filename);
+            if (idx >= 0) {
+              updated[idx] = newRow;
+            } else {
+              updated.push(newRow);
+            }
+            return updated;
+          });
+          
+          // Track generation
+          await trackGenerationInFirestore(1);
+        } else if (data.error) {
+          setError({
+            id: Date.now().toString(),
+            message: data.error,
+            severity: 'error',
+            duration: 5000
+          });
+        }
+      } else {
+        // Existing metadata handling
+        if (data.rows && data.rows.length > 0) {
+          setRows(prev => {
+            const updated = [...prev];
+            const idx = updated.findIndex(r => r.filename === filename);
+            if (idx >= 0) {
+              updated[idx] = data.rows[0];
+            } else {
+              updated.push(data.rows[0]);
+            }
+            return updated;
+          });
+          
+          // Track generation
+          await trackGenerationInFirestore(data.rows.length);
+        }
       }
     } catch (e: any) {
       console.error(e);
@@ -2068,7 +2405,7 @@ export default function Page() {
 
         {/* Center - Main Content */}
         <div className="space-y-6">
-          <div className="card p-6 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)] overflow-hidden flex flex-col min-h-0">
+          <div className="card p-6">
             <FileDrop
               files={files}
               onFilesChange={setFiles}
