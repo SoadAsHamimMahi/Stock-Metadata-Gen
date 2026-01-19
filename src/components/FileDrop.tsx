@@ -539,10 +539,10 @@ export default function FileDrop({
           </div>
           {!hideSetupUI && showTransparentPngHint && (
             <div className="text-xs text-amber-100 bg-amber-500/10 border border-amber-400/40 rounded-md px-3 py-2 flex items-start gap-2">
-              <span>âš ï¸</span>
+              <span>⚠️</span>
               <span>
                 PNG file detected. If this artwork has a transparent background, enable
-                <span className="font-semibold text-amber-200"> "isolated on transparent background"</span>{' '}
+                <span className="font-semibold text-amber-200"> &quot;isolated on transparent background&quot;</span>{' '}
                 in the File Type Attributes panel for the most accurate titles and keywords.
               </span>
             </div>
