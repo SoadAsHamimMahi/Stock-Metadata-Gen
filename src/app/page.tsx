@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import APIControls from '@/components/APIControls';
@@ -71,7 +71,7 @@ export default function Page() {
       | 'meta-llama/llama-4-maverick-17b-128e-instruct'
       | 'meta-llama/llama-4-scout-17b-16e-instruct'
       | undefined,
-    titleLen: 70, // Adobe Stock requirement: 70 chars max
+    titleLen: 100, // Default title length: 100 characters
     descLen: 150 as 150,
     keywordMode: 'fixed' as 'auto' | 'fixed',
     keywordCount: 30,
@@ -2320,9 +2320,9 @@ export default function Page() {
         onExportCSV={onExportCSV}
         onExportZIP={onExportZIP}
       />
-      <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-4 sm:gap-6 animate-fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-4 sm:gap-6 animate-fade-in h-full overflow-hidden">
         {/* Left Sidebar - Settings */}
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-y-auto pr-2">
           {/* Quick Start Guide */}
           <div className="card p-6 bg-gradient-to-br from-green-accent/5 to-teal-accent/5 border-green-accent/30">
             <details className="group">
@@ -2404,8 +2404,8 @@ export default function Page() {
         </div>
 
         {/* Center - Main Content */}
-        <div className="space-y-6">
-          <div className="card p-6">
+        <div className="space-y-6 h-full flex flex-col min-h-0">
+          <div className="card p-6 flex flex-col flex-1 min-h-0">
             <FileDrop
               files={files}
               onFilesChange={setFiles}

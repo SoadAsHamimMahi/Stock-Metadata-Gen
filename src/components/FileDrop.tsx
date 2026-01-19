@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Row } from '@/lib/csv';
@@ -306,17 +306,19 @@ export default function FileDrop({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {uploadError && (
-        <div className="mb-4 p-3 bg-error/20 border border-error/40 rounded-lg text-error text-sm flex items-center justify-between">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Fixed Header Section */}
+      <div className="flex-shrink-0 space-y-4">
+        {uploadError && (
+          <div className="p-3 bg-error/20 border border-error/40 rounded-lg text-error text-sm flex items-center justify-between">
           <span>✗ {uploadError}</span>
-          <button onClick={() => setUploadError(null)} className="text-error hover:text-error/80 transition-colors">Ã—</button>
-        </div>
-      )}
-      
-      {/* Upload Progress Bar */}
-      {uploading && (
-        <div className="mb-4 p-4 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
+            <button onClick={() => setUploadError(null)} className="text-error hover:text-error/80 transition-colors">Ã—</button>
+          </div>
+        )}
+        
+        {/* Upload Progress Bar */}
+        {uploading && (
+          <div className="p-4 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
           <div className="flex items-center gap-4 mb-3">
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
@@ -340,9 +342,9 @@ export default function FileDrop({
               : `Processing files... ${uploadProgress}% complete`}
           </div>
         </div>
-      )}
-      {files.length > 0 && !hideSetupUI && (
-        <div className="mb-4 text-sm text-text-secondary p-3 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
+        )}
+        {files.length > 0 && !hideSetupUI && (
+          <div className="text-sm text-text-secondary p-3 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
           <span className="font-bold text-green-bright">{files.length}</span>{' '}
           file{files.length !== 1 ? 's' : ''} uploaded |{' '}
           {anyCompressed ? (
@@ -370,16 +372,16 @@ export default function FileDrop({
             </>
           )}
         </div>
-      )}
+        )}
 
-      {/* Upload Zone - Always visible */}
-      {!hideSetupUI && (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={onDrop}
-          onClick={handleUploadClick}
-          className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 mb-6 ${
+        {/* Upload Zone - Always visible */}
+        {!hideSetupUI && (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+            onClick={handleUploadClick}
+            className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 ${
             files.length > 0 
               ? 'p-4' // Smaller when files exist
               : 'p-12' // Larger when empty
@@ -420,11 +422,11 @@ export default function FileDrop({
             style={{ display: 'none' }}
           />
         </div>
-      )}
+        )}
 
-      {/* Action Bar */}
-      {files.length > 0 && !hideSetupUI && (
-        <div className="flex flex-col gap-3 mb-6">
+        {/* Action Bar */}
+        {files.length > 0 && !hideSetupUI && (
+          <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3 flex-wrap">
           <button 
             className="btn btn-secondary text-sm"
@@ -476,7 +478,13 @@ export default function FileDrop({
           {onRegenerateFailed && (() => {
             const failedFiles = files.filter(f => {
               const row = rows.find(r => r.filename === f.name);
-              return row?.error;
+              // Only count actual errors (not word count warnings)
+              if (!row?.error) return false;
+              // Word count warnings are not failures (prompt was generated)
+              if (row.error.startsWith('Warning:')) return false;
+              // For prompt mode: only count as failed if no prompt was generated
+              if (row.generatedPrompt) return false;
+              return true;
             });
             const canRegenerateFailed = failedFiles.length > 0 && !generating && !startProcessingDisabled;
             return (
@@ -548,11 +556,11 @@ export default function FileDrop({
             </div>
           )}
         </div>
-      )}
+        )}
 
-      {/* Progress Bar */}
-      {generating && (
-        <div className="mb-4 p-4 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
+        {/* Progress Bar */}
+        {generating && (
+          <div className="p-4 bg-dark-elevated/50 rounded-lg border border-green-accent/20">
           <div className="flex items-center gap-4 mb-3">
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
@@ -594,8 +602,10 @@ export default function FileDrop({
             )}
           </div>
         </div>
-      )}
+        )}
+      </div>
 
+      {/* Scrollable Card Container */}
       {files.length > 0 && (
         <div className="flex-1 min-h-0 overflow-y-auto pr-2">
           <div className="space-y-4">
@@ -751,15 +761,27 @@ function FileCard({
 
   const getPreviewUrl = () => file.url;
 
+  // For prompt mode: Only show error if prompt generation actually failed (no prompt generated)
+  // Word count warnings should not be treated as errors since prompt was generated successfully
+  const isActualError = row?.error && (
+    // If it's a word count warning, it's not an error (prompt was generated)
+    row.error.startsWith('Warning:') 
+      ? false 
+      // For prompt mode: error only if no prompt was generated
+      : row.generatedPrompt 
+        ? false 
+        : true
+  );
+
   const statusBadge = row 
-    ? row.error 
+    ? isActualError
       ? 'badge-error' 
       : 'badge-success'
     : '';
 
   // Calculate quality score for display
   const qualityScore = useMemo(() => {
-    if (!row || !row.title || row.error) return null;
+    if (!row || !row.title || isActualError) return null;
     const platformLower = row.platform.toLowerCase() as 'general' | 'adobe' | 'shutterstock';
     const hasImage = ['png', 'jpg', 'jpeg', 'webp'].includes(ext);
     // Use title length as expected length (or default to 200)
@@ -828,7 +850,7 @@ function FileCard({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {qualityScore && !row?.error && (
+              {qualityScore && !isActualError && (
                 <div 
                   className={`px-2 py-1 rounded text-xs font-bold border transition-all hover:scale-105 ${getQualityColor(qualityScore.score)}`}
                   title={`Quality: ${qualityScore.score}/100. ${qualityScore.strengths.length > 0 ? 'Strengths: ' + qualityScore.strengths.join(', ') : ''} ${qualityScore.issues.length > 0 ? 'Issues: ' + qualityScore.issues.join(', ') : ''}`}
@@ -838,7 +860,7 @@ function FileCard({
               )}
               {statusBadge && (
                 <div className={`${statusBadge} transition-all hover:scale-105`}>
-                  {row?.error ? 'Error' : 'Complete'}
+                  {isActualError ? 'Error' : 'Complete'}
                 </div>
               )}
             </div>
@@ -1060,7 +1082,7 @@ function FileCard({
                 ) : (
                   <>
                     <span className="text-base">✨</span>
-                    <span>{row?.error ? 'Retry' : row ? 'Regenerate' : 'Generate'}</span>
+                    <span>{isActualError ? 'Retry' : row ? 'Regenerate' : 'Generate'}</span>
                   </>
                 )}
               </button>
@@ -1091,7 +1113,7 @@ function CopyBtn({ label, text }: { label: string; text: string }) {
       disabled={!canCopy}
       title={`Copy ${label}`}
     >
-      <span className={copied ? 'animate-bounce-in' : ''}>{copied ? 'âœ“' : 'ðŸ“‹'}</span>
+      <span className={copied ? 'animate-bounce-in' : ''}>{copied ? '✓' : '📋'}</span>
       {copied ? 'Copied!' : label}
     </button>
   );

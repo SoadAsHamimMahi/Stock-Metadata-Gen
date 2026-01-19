@@ -139,13 +139,12 @@ Order keywords by importance: most important first, title words included.` : '';
   
   // Title length rules:
   // - HARD max is the user-selected titleLen (capped at 200)
-  // - Minimum adapts so short limits (e.g., 70) don't force awkward, unfinished clauses,
-  //   while larger limits (e.g., 120) can target near the max for richer titles.
+  // - Minimum is at least 60 characters to ensure descriptive, complete titles
   const titleLengthLimit = Math.min(titleLen, 200);
   const minTitleChars =
     titleLengthLimit <= 80
-      ? Math.max(25, Math.floor(titleLengthLimit * 0.6)) // e.g., 70 -> 42
-      : Math.max(25, titleLengthLimit - 10); // e.g., 120 -> 110 (near-max targeting)
+      ? Math.max(60, Math.floor(titleLengthLimit * 0.6)) // e.g., 70 -> 60 (minimum enforced)
+      : Math.max(60, titleLengthLimit - 10); // e.g., 120 -> 110 (near-max targeting)
   
   const generalTitleGuidance = platform !== 'adobe' ? `
 Titles should be concise and natural while still meeting the minimum length.

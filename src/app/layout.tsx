@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable}`}>
-      <body className="min-h-screen bg-dark-bg font-sans" style={{ fontFamily: 'var(--font-space-grotesk), system-ui, sans-serif' }}>
+      <body className="h-screen bg-dark-bg font-sans overflow-hidden" style={{ fontFamily: 'var(--font-space-grotesk), system-ui, sans-serif' }}>
         <AuthProvider>
           <FirebaseAnalyticsInit />
           <VideoBackground />
@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Header />
             </div>
           </header>
-          <main className="w-full max-w-full lg:w-[90%] lg:max-w-[90%] mx-auto px-4 sm:px-6 py-4 sm:py-6 min-h-screen relative z-10">
+          <main className="w-full max-w-full lg:w-[90%] lg:max-w-[90%] mx-auto px-4 sm:px-6 py-4 sm:py-6 relative z-10" style={{ height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
             {children}
           </main>
         </AuthProvider>
