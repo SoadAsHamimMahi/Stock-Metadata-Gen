@@ -498,6 +498,17 @@ export default function Page() {
   // Maximum number of concurrent workers for parallel generation
   const MAX_CONCURRENT_WORKERS = 5;
 
+  // Helper function to check if a row represents an actual error (not a warning)
+  const isActualError = (row: Row, isPromptMode: boolean): boolean => {
+    if (!row.error) return false; // No error = not an error
+    // Word count warnings are not failures (generation succeeded)
+    if (row.error.startsWith('Warning:')) return false;
+    // For prompt mode: if prompt was generated, it's not an error
+    if (isPromptMode && row.generatedPrompt) return false;
+    // Otherwise, it's an actual error
+    return true;
+  };
+
   // Helper function to process a single file
   const processFile = async (
     fileIndex: number,
@@ -830,11 +841,11 @@ export default function Page() {
           unsubscribe();
           unsubscribeCallbacks.delete(file.name);
           completedCountRef.current++;
-          // Only count as success if there's no error
-          if (!newRow.error) {
-            setSuccessCount(prev => prev + 1);
-          } else {
+          // Only count as failed if it's an actual error (not a warning)
+          if (isActualError(newRow, isPromptMode)) {
             setFailedCount(prev => prev + 1);
+          } else {
+            setSuccessCount(prev => prev + 1);
           }
           const completed = completedCountRef.current;
           setProcessingProgress(Math.round((completed / files.length) * 100));
@@ -898,11 +909,11 @@ export default function Page() {
           unsubscribe();
           unsubscribeCallbacks.delete(file.name);
           completedCountRef.current++;
-          // Only count as success if there's no error
-          if (!newRow.error) {
-            setSuccessCount(prev => prev + 1);
-          } else {
+          // Only count as failed if it's an actual error (not a warning)
+          if (isActualError(newRow, false)) {
             setFailedCount(prev => prev + 1);
+          } else {
+            setSuccessCount(prev => prev + 1);
           }
           const completed = completedCountRef.current;
           setProcessingProgress(Math.round((completed / files.length) * 100));
@@ -1199,12 +1210,28 @@ export default function Page() {
       // Calculate completion stats
       const endTime = Date.now();
       const timeTaken = endTime - startTime;
-      const successCount = allRows.filter((r: Row) => !r.error).length;
+      // Count successful rows: no error, or warning (which means generation succeeded)
+      // For prompt mode: also check if prompt was generated
+      const isPromptMode = form.uiTab === 'prompt';
+      const successCount = allRows.filter((r: Row) => {
+        if (!r.error) return true; // No error = success
+        // Word count warnings are not failures (prompt/metadata was generated)
+        if (r.error.startsWith('Warning:')) return true;
+        // For prompt mode: if prompt was generated, it's a success even with error
+        if (isPromptMode && r.generatedPrompt) return true;
+        // Otherwise, it's an actual error
+        return false;
+      }).length;
       const errorCount = allRows.length - successCount;
       
       // Calculate average quality score
       const qualityScores = allRows
-        .filter((r: Row) => !r.error && r.title)
+        .filter((r: Row) => {
+          // Exclude actual errors, but include warnings (generation succeeded)
+          if (r.error && !r.error.startsWith('Warning:')) return false;
+          if (isPromptMode && r.error && !r.generatedPrompt) return false;
+          return r.title;
+        })
         .map((r: Row) => scoreTitleQuality(r.title || '', r.filename || '', form.titleLen, true, form.platform).score);
       const avgQuality = qualityScores.length > 0 
         ? qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length 
@@ -1213,10 +1240,20 @@ export default function Page() {
       // Track analytics
       if (allRows.length > 0) {
         const avgTitleLength = allRows
-          .filter((r: Row) => !r.error && r.title)
+          .filter((r: Row) => {
+            // Exclude actual errors, but include warnings (generation succeeded)
+            if (r.error && !r.error.startsWith('Warning:')) return false;
+            if (isPromptMode && r.error && !r.generatedPrompt) return false;
+            return r.title;
+          })
           .reduce((sum: number, r: Row) => sum + (r.title?.length || 0), 0) / successCount || 0;
         const avgKeywordCount = allRows
-          .filter((r: Row) => !r.error && r.keywords)
+          .filter((r: Row) => {
+            // Exclude actual errors, but include warnings (generation succeeded)
+            if (r.error && !r.error.startsWith('Warning:')) return false;
+            if (isPromptMode && r.error && !r.generatedPrompt) return false;
+            return r.keywords;
+          })
           .reduce((sum: number, r: Row) => sum + (r.keywords?.length || 0), 0) / successCount || 0;
         
         trackEvent({
@@ -1593,11 +1630,11 @@ export default function Page() {
           unsubscribe();
           unsubscribeCallbacks.delete(file.name);
           completedCountRef.current++;
-          // Only count as success if there's no error
-          if (!newRow.error) {
-            setSuccessCount(prev => prev + 1);
-          } else {
+          // Only count as failed if it's an actual error (not a warning)
+          if (isActualError(newRow, isPromptMode)) {
             setFailedCount(prev => prev + 1);
+          } else {
+            setSuccessCount(prev => prev + 1);
           }
           const completed = completedCountRef.current;
           setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
@@ -1657,11 +1694,11 @@ export default function Page() {
           unsubscribe();
           unsubscribeCallbacks.delete(file.name);
           completedCountRef.current++;
-          // Only count as success if there's no error
-          if (!newRow.error) {
-            setSuccessCount(prev => prev + 1);
-          } else {
+          // Only count as failed if it's an actual error (not a warning)
+          if (isActualError(newRow, false)) {
             setFailedCount(prev => prev + 1);
+          } else {
+            setSuccessCount(prev => prev + 1);
           }
           const completed = completedCountRef.current;
           setProcessingProgress(Math.round((completed / filesToRegenerate.length) * 100));
