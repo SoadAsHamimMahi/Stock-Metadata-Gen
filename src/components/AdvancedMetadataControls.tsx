@@ -207,7 +207,7 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
                   <div className="bg-green-bright/10 border border-green-bright/30 rounded-lg p-3">
                     <p className="text-sm text-green-bright flex items-start gap-2">
                       <span>💡</span>
-                      <span><strong>Tip:</strong> Providing video hints significantly improves title and keyword quality. Describe motion (e.g., "panning", "flying", "flowing") and camera work (e.g., "aerial", "drone", "tracking") to get better results.</span>
+                      <span><strong>Tip:</strong> Providing video hints significantly improves title and keyword quality. Describe motion (e.g., &quot;panning&quot;, &quot;flying&quot;, &quot;flowing&quot;) and camera work (e.g., &quot;aerial&quot;, &quot;drone&quot;, &quot;tracking&quot;) to get better results.</span>
                     </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
