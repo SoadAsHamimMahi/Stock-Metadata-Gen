@@ -64,7 +64,7 @@ const ASSET_TIPS = {
   vector: 'Vector words (flat, outline, gradient, geometric, scalable). No camera/video terms.',
   '3d': '3D/CGI wording (isometric, render, material) allowed.',
   icon: 'Icon set wording (pack, symbols, ui).',
-  video: 'Subject + action + setting; only TRUE tech tags if provided (e.g., 4k, 60fps, timelapse).'
+  video: 'Video-specific: Describe motion, camera movement, and pacing. Include subject + action/motion + camera work + setting. Use motion verbs (flying, flowing, rotating, panning, tracking). Identify video type (timelapse, slow-motion, drone footage, etc.). Include tech tags ONLY if provided in hints (4K, 60fps, etc.). Structure: [Subject] [action/motion] [camera movement] [setting] [tech tags if provided].'
 } as const;
 
 function rules(
@@ -86,7 +86,44 @@ function rules(
   const imageInstructions = hasImage ? `
 CRITICAL: An image is provided. You MUST:
 1. Analyze the image carefully and describe what you actually see
-${isVideo ? '2. NOTE: This image is a frame extracted from a video - it represents the video content. Generate metadata based on what you see in this frame.' : ''}
+${isVideo ? `2. VIDEO-SPECIFIC ANALYSIS (CRITICAL - Compare frames to detect motion):
+   - This image contains frames from the start, middle, and end of a video (combined into a vertical strip)
+   - FRAME COMPARISON METHOD: Compare the top frame (start) with middle frame, and middle with bottom frame (end) to detect changes
+   - Analyze MOTION by comparing frames:
+     * Look for position changes: Has the subject moved between frames? (flying, flowing, rotating, drifting, etc.)
+     * Look for scale changes: Is the subject getting closer/farther? (zooming in/out, approaching, receding)
+     * Look for blur/motion trails: Fast motion creates blur - use terms like "fast-paced", "dynamic movement"
+     * Look for time progression: Dramatic lighting/sky changes suggest timelapse; minimal changes suggest slow-motion or real-time
+   - Analyze CAMERA MOVEMENT by comparing frames:
+     * Background shift = camera panning/tracking (left-right, up-down movement)
+     * Perspective change = camera moving forward/backward (dolly, tracking shot)
+     * Angle change = camera tilting/rotating
+     * Consistent high-angle view = aerial/drone footage
+     * No background change but subject moves = static camera, moving subject
+   - Analyze PACING:
+     * Large changes between frames = fast-paced or timelapse
+     * Small subtle changes = slow-motion or gentle movement
+     * No visible changes = static shot (but still describe as "video" with subject description)
+   - Identify VIDEO TYPE:
+     * Dramatic time/lighting changes = timelapse
+     * Slow, smooth motion = slow-motion
+     * High aerial view = drone footage
+     * Smooth horizontal movement = panning shot
+     * Following a subject = tracking shot
+   - FALLBACK GUIDANCE: If motion is unclear or subtle:
+     * Use descriptive motion terms: "dynamic", "moving", "flowing", "animated"
+     * Describe what IS visible: subject, setting, composition
+     * Use general video terms: "footage", "video", "clip" (but avoid generic "stock video")
+     * Focus on the visual content even if motion is minimal
+   - Generate metadata that captures the DYNAMIC nature of video content, not just static frames` : ''}   ${isVideo ? `VIDEO BACKGROUND ANALYSIS:
+   - Videos typically have SOLID backgrounds (not transparent) - analyze the actual background color/type
+   - If background is DARK/BLACK: describe as "dark background", "black background", or "on dark"
+   - If background is WHITE: describe as "white background" or "on white"
+   - If background has a COLOR: mention the specific color (e.g., "blue background", "on blue")
+   - ONLY use "transparent background" or "isolated" if you can CLEARLY see transparency/alpha channel in the frames
+   - DO NOT assume transparency for videos - most videos have solid backgrounds
+   ` : ''}
+
 2. Pay special attention to the BACKGROUND: 
    - FIRST: Check if the background has transparency (alpha channel). If transparent, it has NO COLOR - describe as "transparent background" or "isolated" ONLY.
    - If transparent: DO NOT mention ANY background color (not green, not white, not any color) - ONLY say "transparent background" or "isolated"
@@ -94,9 +131,9 @@ ${isVideo ? '2. NOTE: This image is a frame extracted from a video - it represen
    - If the background has a specific color (and is NOT transparent), mention that color
    - CRITICAL: If you see transparent areas, they have NO background color. DO NOT mention "green background", "colored background", or any color for transparent backgrounds.
    - FORBIDDEN: Never mention "green background" unless the background is actually a solid green color (not transparent)
-3. Generate title based ONLY on visible content: subjects, objects, colors, textures, setting, AND background (only if visible/colored, not if transparent)
-4. Generate keywords describing ONLY what you observe: subjects, objects, colors, textures, setting, AND background details (transparent/white/colored - be accurate!)
-${isVideo ? '5. DO NOT use filename hints - analyze ONLY the frame image you see' : '5. Use filename hints only as secondary clues if the image is unclear'}
+3. Generate title based ONLY on visible content: subjects, objects, colors, textures, setting, AND background (only if visible/colored, not if transparent)${isVideo ? '. For videos, also include motion, camera movement, and video type in the title' : ''}
+4. Generate keywords describing ONLY what you observe: subjects, objects, colors, textures, setting, AND background details (transparent/white/colored - be accurate!)${isVideo ? '. For videos, also include motion keywords, camera movement terms, video type, and pacing' : ''}
+${isVideo ? '5. VIDEO-SPECIFIC: DO NOT use filename hints - analyze ONLY the video frames you see. Focus on motion, camera work, and dynamic elements visible across the frames' : '5. Use filename hints only as secondary clues if the image is unclear'}
 ` : '';
   
   const adobeTitleGuidance = platform === 'adobe' ? `
@@ -105,6 +142,71 @@ Write a natural, descriptive title (a short phrase or sentence), not a keyword l
 IMPORTANT: Use no more than 3 commas (",") and at most 1 semicolon (";") in the title.
 If you need to list many elements, group them with words like "and", "with", or simplify the phrase into a single descriptive clause.
 Include specific details: animal species names, location names (city/state/country), equipment names (ONLY if the equipment is clearly visible and is a main subject, e.g., "drone", "smartphone", "camera lens" - do NOT invent camera models or metadata from EXIF), specific actions.
+${isVideo ? `VIDEO-SPECIFIC TITLE GUIDANCE (MANDATORY for videos):
+- CRITICAL: Minimum title length is 60 characters. For videos, longer titles (up to ${titleLen} chars) are ACCEPTABLE and ENCOURAGED for better description.
+- Structure: [Subject] [specific motion verb] [camera movement] [setting] [tech tags if provided]
+- NEVER use generic "moving" - use specific verbs: glowing, rotating, pulsing, flowing, drifting, etc.
+- ALWAYS include camera work: "static camera", "panning shot", "tracking shot", etc. (or explicitly state if camera doesn't move)
+- Identify video type when clear: timelapse, slow-motion, real-time, animation, etc.
+- Include tech tags ONLY if provided in video hints: 4K, 60fps, etc.
+
+NATURAL LANGUAGE FLOW (CRITICAL):
+- Write titles as natural, flowing phrases - NOT keyword lists or bullet points
+- Use connecting words naturally: "of", "with", "at", "on", "in", "during", "as", "while"
+- Examples of GOOD flow:
+  * "Aerial drone footage of mountain landscape at sunset with clouds flowing" (uses "of", "at", "with")
+  * "Slow-motion panning shot of neon blue hearts pulsing on black background" (uses "of", "on")
+  * "Timelapse of city skyline with traffic moving at night" (uses "of", "with", "at")
+- Examples of BAD flow (avoid):
+  * "Mountain landscape, clouds, sunset, aerial drone" (keyword list, no flow)
+  * "Neon hearts moving dark background" (missing connecting words)
+
+SUBJECT DETAIL RULES (include when visible and relevant):
+- COLOR: Always include if distinctive (e.g., "neon blue hearts", "red apple", "golden sunset")
+- NUMBER: Include when relevant (e.g., "two intertwined hearts", "three people", "multiple clouds")
+- SIZE/SCALE: Include when significant (e.g., "large mountain", "tiny droplets", "massive waves")
+- MATERIAL/STYLE: Include when distinctive (e.g., "neon", "wooden", "metallic", "glass")
+- SPECIFICITY: Use specific names when possible (e.g., "Jack Russel Terrier" not just "dog", "Portland, Oregon" not just "city")
+
+MOTION INTENSITY DESCRIPTORS (use to enhance motion verbs):
+- FAST MOTION: "fast-paced", "rapid", "dynamic", "swift", "quick", "speedy"
+- SLOW MOTION: "gentle", "smooth", "slow-motion", "leisurely", "gradual", "calm"
+- MODERATE: "flowing", "steady", "continuous", "smooth", "rhythmic"
+- ERRATIC: "jittery", "unpredictable", "chaotic", "turbulent" (only if actually visible)
+- Examples:
+  * "Fast-paced timelapse of city traffic at night"
+  * "Gentle slow-motion panning shot of ocean waves"
+  * "Smooth flowing animation of neon hearts rotating"
+
+PRIORITY ORDER FOR LENGTH CONSTRAINTS:
+- ESSENTIAL (always include): Subject + Motion verb + Camera work
+- HIGH PRIORITY (include if space allows): Setting/context + Subject details (color, number)
+- MEDIUM PRIORITY (include if ample space): Time of day, weather, location specifics
+- LOW PRIORITY (include only if very long titles allowed): Composition details, mood descriptors, tech tags
+- If approaching character limit, prioritize in this order:
+  1. Subject (with color/number if distinctive)
+  2. Motion verb (with intensity descriptor if space allows)
+  3. Camera work
+  4. Setting/context
+  5. Time/weather details
+  6. Tech tags (only if provided in hints)
+
+SETTING DETAIL GUIDANCE (include when visible and relevant):
+- TIME OF DAY: "at sunset", "at sunrise", "at night", "during golden hour", "in morning light", "at dusk", "at dawn"
+- WEATHER CONDITIONS: "in rain", "under clear sky", "during storm", "in fog", "with snow", "on sunny day"
+- LOCATION SPECIFICS: "on beach", "in forest", "at city intersection", "in urban area", "on mountain peak", "by lake"
+- ATMOSPHERE/MOOD: "peaceful", "dramatic", "serene", "energetic", "tranquil" (use sparingly, only if space allows)
+- Examples:
+  * "Aerial drone footage of mountain landscape at sunset with clouds flowing" (includes time: "at sunset")
+  * "Timelapse of city skyline with traffic moving at night" (includes time: "at night")
+  * "Slow-motion panning shot of ocean waves on beach during golden hour" (includes location + time)
+
+Examples (showing natural flow and all elements):
+  * "Animated neon heart shapes glowing and rotating on dark background" (67 chars - good flow, includes subject details)
+  * "Slow-motion panning shot of neon blue hearts pulsing on black background" (68 chars - natural flow, subject color, motion intensity)
+  * "Aerial drone footage of mountain landscape at sunset with clouds flowing" (73 chars - natural flow, time detail, motion)
+  * "Timelapse of busy city intersection with cars and pedestrians moving at night" (69 chars - location detail, time, natural flow)
+- Focus on DYNAMIC elements: motion, movement, camera work, not just static subjects` : ''}
 CRITICAL: Always mention the background accurately:
 - If transparent: prefer "isolated" in the title, use "transparent background" primarily in keywords (unless including it in the title is clearly helpful for buyers)
 - If white: use "white background" or "isolated on white"
@@ -126,15 +228,22 @@ FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or 
 4. For locations: include country with city/state (e.g., "Portland, Oregon, USA" → ["portland", "oregon", "usa"]).
 5. Include conceptual elements: feelings, mood, trends (e.g., "solitude", "childhood", "milestones").
 6. Include setting: "indoors", "outdoors", "day", "night", "sunny", "cloudy" (if visible).
-7. CRITICAL: Background keywords - be ACCURATE:
+${isVideo ? `7. VIDEO-SPECIFIC KEYWORDS (CRITICAL for video search visibility):
+   - Motion keywords: flying, rotating, flowing, moving, drifting, panning, tracking, etc. (describe actual motion seen)
+   - Camera movement: aerial, drone, panning, tracking, static, zooming, etc. (describe camera work)
+   - Video type: timelapse, slow-motion, real-time, fast-paced, etc. (only if clearly identifiable)
+   - Tech keywords: ONLY include if provided in video hints (4k, 60fps, hd, etc.) - NEVER invent tech specs
+   - Pacing: fast-paced, slow-motion, smooth, dynamic, etc. (describe video rhythm)
+   - These video-specific keywords should appear early in the keyword list (top 15) for better search visibility
+8.` : '7.'} CRITICAL: Background keywords - be ACCURATE:
    - If background is TRANSPARENT: use ONLY "transparent background" or "isolated" - DO NOT mention ANY color (not green, not white, not any color)
    - If background is WHITE: use "white background", "isolated on white", or "on white"
    - If background has a specific COLOR (and is not transparent): mention that color (e.g., "blue background")
    - FORBIDDEN: Never use "green background" unless the background is actually solid green (not transparent)
    - NEVER mention a background color if the background is actually transparent
-8. Include viewpoint: "high-angle view", "aerial view", "drone point of view" (if applicable).
-9. Include number of people: "one person", "three people", "nobody" (if applicable).
-10. Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
+${isVideo ? '9.' : '8.'} Include viewpoint: "high-angle view", "aerial view", "drone point of view" (if applicable).
+${isVideo ? '10.' : '9.'} Include number of people: "one person", "three people", "nobody" (if applicable).
+${isVideo ? '11.' : '10.'} Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
 Order keywords by importance: most important first, title words included.` : '';
   
   // Title length rules:
@@ -144,7 +253,9 @@ Order keywords by importance: most important first, title words included.` : '';
   const minTitleChars =
     titleLengthLimit <= 80
       ? Math.max(60, Math.floor(titleLengthLimit * 0.6)) // e.g., 70 -> 60 (minimum enforced)
-      : Math.max(60, titleLengthLimit - 10); // e.g., 120 -> 110 (near-max targeting)
+      : isVideo
+        ? Math.max(60, Math.floor(titleLengthLimit * 0.85)) // e.g., 120 -> 102 (allow longer for videos)
+        : Math.max(60, titleLengthLimit - 10); // e.g., 120 -> 110 (near-max targeting)
   
   const generalTitleGuidance = platform !== 'adobe' ? `
 Titles should be concise and natural while still meeting the minimum length.
@@ -154,6 +265,13 @@ The title must be complete and not cut off mid-sentence.
   // Few-shot examples based on platform
   const fewShotExamples = platform === 'adobe' ? `
 Examples of GOOD titles (within ${titleLen} chars, complete, specific):
+${isVideo ? `VIDEO EXAMPLES:
+{"title": "Aerial drone footage of mountain landscape at sunset with clouds flowing", "description": "Stunning aerial video of mountain landscape during sunset with dynamic cloud movement.", "keywords": ["aerial", "drone", "mountain", "landscape", "sunset", "clouds", "flowing", "flying", "panning", "outdoors", "scenic", "nature"]}
+{"title": "Timelapse of city skyline with traffic moving at night", "description": "Dynamic timelapse video showing city skyline with moving traffic lights at night.", "keywords": ["timelapse", "city", "skyline", "traffic", "moving", "night", "lights", "urban", "fast-paced", "dynamic", "time-lapse"]}
+{"title": "Slow-motion panning shot of ocean waves on beach", "description": "Smooth slow-motion panning video of ocean waves gently rolling onto sandy beach.", "keywords": ["slow-motion", "panning", "ocean", "waves", "beach", "smooth", "gentle", "rolling", "water", "coastal", "relaxing"]}
+{"title": "Animated neon heart shapes glowing and rotating on dark background", "description": "Dynamic animated video of two intertwined neon blue heart shapes glowing and rotating against dark background.", "keywords": ["neon", "heart", "shapes", "glowing", "rotating", "animated", "dark", "background", "blue", "light", "motion", "dynamic"]}
+` : ''}
+PHOTO/IMAGE EXAMPLES:
 {"title": "Red apple isolated on white background", "description": "Fresh red apple on white background, perfect for food photography and commercial use.", "keywords": ["apple", "red", "fruit", "fresh", "white", "background", "isolated", "food", "healthy", "commercial"]}
 {"title": "Young woman playing catch with Jack Russel Terrier at beach", "description": "Happy woman playing with her dog on a sunny beach, showing joy and companionship.", "keywords": ["woman", "dog", "jack", "russel", "terrier", "beach", "playing", "catch", "outdoors", "sunny"]}
 {"title": "Abstract futuristic microchip circuit board design isolated", "description": "Modern technology circuit board pattern with microchips, ideal for tech and innovation themes.", "keywords": ["circuit", "board", "microchip", "technology", "abstract", "futuristic", "design", "isolated", "white", "background"]}
@@ -162,12 +280,28 @@ Examples of BAD titles (avoid these):
 - "Professional high quality stock photo" (too generic, contains banned words)
 - "Image of something" (too vague, filename-based)
 - "Design element graphic" (too generic, lacks specificity)
+${isVideo ? `BAD VIDEO TITLES (avoid these):
+- "Neon heart shapes moving in darkness" (too short: 36 chars, needs 60+ chars; generic "moving", missing camera work)
+- "Video of mountains" (too vague, missing motion/camera description)
+- "Stock video footage" (too generic, contains banned words)
+- "4K video" (tech tag without content description)
+- "Hearts on dark" (too short, missing motion/camera)
+- "Neon hearts moving" (too short, generic motion)` : ''}
 ` : platform === 'shutterstock' ? `
 Examples of GOOD titles:
+${isVideo ? `VIDEO EXAMPLES:
+{"title": "Aerial drone footage panning over forest canopy in morning light", "description": "Beautiful aerial drone video panning smoothly over lush forest canopy during golden hour.", "keywords": ["aerial", "drone", "forest", "canopy", "panning", "morning", "light", "nature", "flying", "smooth", "outdoors"]}
+{"title": "Timelapse of busy city intersection with cars and pedestrians moving", "description": "Dynamic timelapse showing urban intersection with fast-moving traffic and pedestrians.", "keywords": ["timelapse", "city", "intersection", "cars", "pedestrians", "moving", "urban", "fast-paced", "traffic", "time-lapse", "dynamic"]}
+` : ''}
+PHOTO/IMAGE EXAMPLES:
 {"title": "Vibrant sunset over mountain landscape with lake reflection", "description": "Beautiful sunset scene with mountains and lake, perfect for travel and nature themes.", "keywords": ["sunset", "mountain", "landscape", "lake", "reflection", "nature", "scenic", "outdoors", "peaceful", "serene"]}
 {"title": "Modern minimalist office workspace with laptop and plants", "description": "Clean contemporary office setup featuring laptop, plants, and natural lighting.", "keywords": ["office", "workspace", "laptop", "plants", "modern", "minimalist", "contemporary", "desk", "work", "indoor"]}
 ` : `
 Examples of GOOD titles:
+${isVideo ? `VIDEO EXAMPLES:
+{"title": "Aerial tracking shot of river flowing through valley", "description": "Smooth aerial tracking video following river as it flows through scenic valley.", "keywords": ["aerial", "tracking", "river", "flowing", "valley", "smooth", "nature", "water", "scenic", "outdoors"]}
+` : ''}
+PHOTO/IMAGE EXAMPLES:
 {"title": "Hand-drawn floral pattern vector illustration", "description": "Elegant hand-drawn floral design in vector format, suitable for print and digital use.", "keywords": ["floral", "pattern", "vector", "illustration", "hand", "drawn", "design", "decorative", "artistic", "elegant"]}
 `;
 
@@ -272,7 +406,7 @@ This override takes precedence over everything else in this prompt (except filen
   
   const isVideo = a.assetType === 'video';
   const imageContext = isVideo && hasImage 
-    ? 'IMPORTANT: The provided image is a frame extracted from the middle of a video. Analyze this frame carefully as it represents the video content. Describe what you see:'
+    ? 'IMPORTANT: The provided image contains frames extracted from the start, middle, and end of a video, combined into a vertical strip. Analyze all frames carefully as they represent the video content across different moments. Describe what you see:'
     : hasImage 
       ? 'IMPORTANT: Analyze the provided image carefully. Describe what you see:'
       : '';
@@ -302,7 +436,16 @@ ${shouldUseFilenameHints
   ? `Filename hints: ${hints.join(', ') || 'none'}.`
   : ''}
 ${a.assetType === 'video'
-  ? `Video hints (optional): style=[${a.videoHints?.style?.join(', ') || ''}], tech=[${a.videoHints?.tech?.join(', ') || ''}]`
+  ? `CRITICAL VIDEO HINTS - MUST BE INCORPORATED:
+${a.videoHints?.style && a.videoHints.style.length > 0
+  ? `Style hints: [${a.videoHints.style.join(', ')}] - Incorporate these style descriptors naturally into the title and keywords. Use them to enhance motion/camera descriptions.`
+  : ''}
+${a.videoHints?.tech && a.videoHints.tech.length > 0
+  ? `Tech hints: [${a.videoHints.tech.join(', ')}] - Include these technical specifications in the title (e.g., "4K footage", "60fps video") and as keywords. These are verified technical details provided by the user.`
+  : ''}
+${(!a.videoHints?.style || a.videoHints.style.length === 0) && (!a.videoHints?.tech || a.videoHints.tech.length === 0)
+  ? 'No video hints provided - focus on analyzing motion, camera movement, and video type from the frames.'
+  : ''}`
   : ''
 }
 Return ONLY one JSON object like:

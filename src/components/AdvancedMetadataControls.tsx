@@ -203,24 +203,34 @@ export default function AdvancedMetadataControls({ value, onChange }: { value: F
               </div>
 
               {value.assetType === 'video' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">Style tags (comma-separated)</label>
-                    <input 
-                      className="input" 
-                      placeholder="e.g., cinematic, slow motion"
-                      value={(value.videoHints?.style||[]).join(', ')}
-                      onChange={(e)=>set('videoHints', { ...(value.videoHints||{}), style: sanitizeWords(e.target.value.split(',')) })} 
-                    />
+                <div className="space-y-3">
+                  <div className="bg-green-bright/10 border border-green-bright/30 rounded-lg p-3">
+                    <p className="text-sm text-green-bright flex items-start gap-2">
+                      <span>💡</span>
+                      <span><strong>Tip:</strong> Providing video hints significantly improves title and keyword quality. Describe motion (e.g., "panning", "flying", "flowing") and camera work (e.g., "aerial", "drone", "tracking") to get better results.</span>
+                    </p>
                   </div>
-                  <div>
-                    <label className="label">Tech tags (comma-separated)</label>
-                    <input 
-                      className="input" 
-                      placeholder="e.g., 4k, 60fps"
-                      value={(value.videoHints?.tech||[]).join(', ')}
-                      onChange={(e)=>set('videoHints', { ...(value.videoHints||{}), tech: sanitizeWords(e.target.value.split(',')) })} 
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">Style tags (comma-separated)</label>
+                      <input 
+                        className="input" 
+                        placeholder="e.g., cinematic, slow motion, panning, aerial"
+                        value={(value.videoHints?.style||[]).join(', ')}
+                        onChange={(e)=>set('videoHints', { ...(value.videoHints||{}), style: sanitizeWords(e.target.value.split(',')) })} 
+                      />
+                      <p className="text-xs text-text-secondary mt-1">Describe motion and camera work: panning, tracking, aerial, drone, slow-motion, timelapse, etc.</p>
+                    </div>
+                    <div>
+                      <label className="label">Tech tags (comma-separated)</label>
+                      <input 
+                        className="input" 
+                        placeholder="e.g., 4k, 60fps, hd"
+                        value={(value.videoHints?.tech||[]).join(', ')}
+                        onChange={(e)=>set('videoHints', { ...(value.videoHints||{}), tech: sanitizeWords(e.target.value.split(',')) })} 
+                      />
+                      <p className="text-xs text-text-secondary mt-1">Technical specs: 4K, 60fps, HD, etc. Only include if accurate.</p>
+                    </div>
                   </div>
                 </div>
               )}

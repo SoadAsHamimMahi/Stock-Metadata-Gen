@@ -92,6 +92,23 @@ export default function Page() {
   const bearerRef = useRef<string>('');
   const { user } = useAuth();
 
+  // Auto-detect asset type when files are uploaded
+  useEffect(() => {
+    if (files.length === 0) return;
+    
+    // Only auto-detect if assetType is 'auto' (don't override user's manual selection)
+    if (form.assetType !== 'auto') return;
+    
+    const defaults = getSmartDefaults(files, form.platform);
+    if (defaults.assetType && defaults.assetType !== form.assetType) {
+      console.log(`🔍 Auto-detected asset type: ${defaults.assetType} based on uploaded files`);
+      setForm(prev => ({
+        ...prev,
+        ...defaults
+      }));
+    }
+  }, [files, form.platform, form.assetType]); // Include form.assetType to avoid stale closures; early return prevents loops
+
   // Detect when PNG files are present without an explicit background toggle,
   // so we can gently remind the user to set "isolated on transparent background".
   const showTransparentPngHint = useMemo(
