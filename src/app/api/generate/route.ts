@@ -873,7 +873,17 @@ export async function POST(req: NextRequest) {
         }
       }
       
-
+      // Assign keywords to finalKeywords for final processing
+      let finalKeywords = [...keywords];
+      
+      // Apply user-specified negative keywords (case-insensitive) as a hard filter
+      if (Array.isArray(a.negativeKeywords) && a.negativeKeywords.length > 0) {
+        const negSet = new Set(
+          a.negativeKeywords
+            .map(s => String(s).trim().toLowerCase())
+            .filter(Boolean)
+        );
+        if (negSet.size > 0) {
           finalKeywords = finalKeywords.filter(k => !negSet.has(String(k).trim().toLowerCase()));
         }
       }
