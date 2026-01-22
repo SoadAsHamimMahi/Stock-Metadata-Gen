@@ -71,10 +71,10 @@ export default function Page() {
       | 'meta-llama/llama-4-maverick-17b-128e-instruct'
       | 'meta-llama/llama-4-scout-17b-16e-instruct'
       | undefined,
-    titleLen: 100, // Default title length: 100 characters
+    titleLen: 110, // Default title length: 110 characters
     descLen: 150 as 150,
     keywordMode: 'fixed' as 'auto' | 'fixed',
-    keywordCount: 30,
+    keywordCount: 35,
     assetType: 'auto' as 'auto' | 'photo' | 'illustration' | 'vector' | '3d' | 'icon' | 'video',
     prefix: '',
     suffix: '',

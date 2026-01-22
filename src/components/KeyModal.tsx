@@ -30,7 +30,8 @@ const MISTRAL_MODELS: Array<{ value: MistralModel; label: string; quota: string 
 ];
 
 const GROQ_MODELS: Array<{ value: GroqModel; label: string; quota: string }> = [
-  { value: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B (multimodal, queued)', quota: 'Free/preview tier (check Groq docs)' }
+  { value: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B (multimodal, queued)', quota: 'Free/preview tier (check Groq docs)' },
+  { value: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B (multimodal, stronger)', quota: 'Free/preview tier (check Groq docs)' }
 ];
 
 export default function KeyModal({
@@ -113,12 +114,13 @@ export default function KeyModal({
           setMistralModel(v.mistralModel);
         }
         if (v.groqModel) {
-          // If an old Groq model was stored (e.g., Maverick or something legacy),
-          // normalize everything to the single supported UI model: Scout.
+          // Normalize to valid Groq models (Scout or Maverick)
           const normalizedGroqModel: GroqModel =
             v.groqModel === 'meta-llama/llama-4-scout-17b-16e-instruct'
               ? 'meta-llama/llama-4-scout-17b-16e-instruct'
-              : 'meta-llama/llama-4-scout-17b-16e-instruct';
+              : v.groqModel === 'meta-llama/llama-4-maverick-17b-128e-instruct'
+              ? 'meta-llama/llama-4-maverick-17b-128e-instruct'
+              : 'meta-llama/llama-4-scout-17b-16e-instruct'; // Default to Scout
           setGroqModel(normalizedGroqModel);
         }
 
@@ -803,8 +805,16 @@ export default function KeyModal({
                 </div>
               )}
               {activeProvider === 'groq' && (
-                <div className="text-xs text-white/60 italic">
-                  💡 Groq offers fast inference with generous free tier limits
+                <div className="text-xs text-white/60 space-y-1">
+                  <div className="italic">💡 Groq offers fast inference with generous free tier limits</div>
+                  <div className="mt-2 p-2 bg-white/5 rounded border border-white/10">
+                    <div className="font-medium text-white/80 mb-1">Model Comparison:</div>
+                    <div className="space-y-1 text-white/70">
+                      <div><strong>Scout 17B:</strong> Faster (~750 tokens/sec), good performance (MMLU 52.2), 16 experts. Best for speed and general use.</div>
+                      <div><strong>Maverick 17B:</strong> Stronger performance (MMLU 59.6, ChartQA 90.0), 128 experts, better for complex tasks like scientific name detection. Slightly slower (~600 tokens/sec).</div>
+                      <div className="text-white/60 italic mt-1">Both have identical vision capabilities. Maverick may better detect specific species names.</div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

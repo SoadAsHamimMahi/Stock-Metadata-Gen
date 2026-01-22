@@ -25,6 +25,12 @@ export type ModelArgs = {
   isolatedOnWhiteBackground?: boolean;
   isVector?: boolean;
   isIllustration?: boolean;
+  objectNames?: {
+    common_names: string[];
+    scientific_names: string[];
+    specific_types: string[];
+    technical_attributes: string[];
+  };
   geminiModel?: GeminiModel;  // Selected Gemini model
   mistralModel?: MistralModel; // Selected Mistral model
   groqModel?: GroqModel; // Selected Groq model
@@ -85,7 +91,18 @@ function rules(
   
   const imageInstructions = hasImage ? `
 CRITICAL: An image is provided. You MUST:
-1. Analyze the image carefully and describe what you actually see
+1. IDENTIFY SPECIFIC OBJECT NAMES (CRITICAL - DO NOT USE GENERIC TERMS):
+   - For PLANTS: Identify SPECIFIC species names (both common AND scientific names if identifiable)
+     * Examples: "Prairie dropseed Sporobolus heterolepis", "Karl Foerster Calamagrostis acutiflora", "Red maple Acer rubrum"
+     * DO NOT use generic terms like "grass", "plant", "tree" - use SPECIFIC species names
+     * If you see multiple types, identify EACH one specifically (e.g., "Prairie dropseed and Calamagrostis acutiflora" not "different grass types")
+   - For ANIMALS: Identify SPECIFIC breed or species names
+     * Examples: "Jack Russel Terrier", "Golden Retriever", "Persian cat", "Bengal tiger"
+     * DO NOT use generic terms like "dog", "cat", "bird" - use SPECIFIC breed/species names
+   - For OBJECTS: Identify SPECIFIC types, models, or categories when clearly visible
+     * Examples: "iPhone 14", "MacBook Pro", "Nikon D850" (only if clearly visible, don't invent)
+   - CRITICAL: If you cannot identify a specific species/breed, still try to be as specific as possible (e.g., "tall ornamental grass" not just "grass")
+   - Analyze the image carefully and describe what you actually see with SPECIFIC names
 ${isVideo ? `2. VIDEO-SPECIFIC ANALYSIS (CRITICAL - Compare frames to detect motion):
    - This image contains frames from the start, middle, and end of a video (combined into a vertical strip)
    - FRAME COMPARISON METHOD: Compare the top frame (start) with middle frame, and middle with bottom frame (end) to detect changes
@@ -142,6 +159,24 @@ Write a natural, descriptive title (a short phrase or sentence), not a keyword l
 IMPORTANT: Use no more than 3 commas (",") and at most 1 semicolon (";") in the title.
 If you need to list many elements, group them with words like "and", "with", or simplify the phrase into a single descriptive clause.
 Include specific details: animal species names, location names (city/state/country), equipment names (ONLY if the equipment is clearly visible and is a main subject, e.g., "drone", "smartphone", "camera lens" - do NOT invent camera models or metadata from EXIF), specific actions.
+
+OBJECT NAME DETECTION (CRITICAL for SEO ranking):
+- ALWAYS include scientific names when detected (e.g., "Sporobolus heterolepis", "Calamagrostis acutiflora")
+- Include common names alongside scientific names (e.g., "Prairie dropseed Sporobolus heterolepis")
+- For animals: include breed names (e.g., "Jack Russel Terrier" not just "dog")
+- For plants: include both common and scientific names when identifiable
+- Use specific object types instead of generic terms (e.g., "Prairie dropseed" not "grass type")
+- If multiple objects: list them specifically (e.g., "Prairie dropseed and Calamagrostis acutiflora" not "different types")
+
+TECHNICAL DESCRIPTORS (include when applicable):
+- File format: "PNG", "isolated PNG" (for PNG files with transparency)
+- Quality descriptors: "high resolution", "perfectly cutout", "cutout", "isolated"
+- Composition: "set of", "collection of", "frontal", "side view", "top view"
+- Use natural flow: "isolated PNG on transparent background" or "perfectly cutout high resolution"
+- Examples:
+  * "Set of frontal Prairie dropseed Sporobolus heterolepis grass isolated PNG"
+  * "High resolution perfectly cutout Calamagrostis acutiflora on transparent background"
+
 ${isVideo ? `VIDEO-SPECIFIC TITLE GUIDANCE (MANDATORY for videos):
 - CRITICAL: Minimum title length is 60 characters. For videos, longer titles (up to ${titleLen} chars) are ACCEPTABLE and ENCOURAGED for better description.
 - Structure: [Subject] [specific motion verb] [camera movement] [setting] [tech tags if provided]
@@ -225,6 +260,13 @@ FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or 
 1. Include all important CONTENT words from the title in your keywords. Ignore stop words like "and", "with", "on", "at", "of", "the". Key nouns and meaningful adjectives from the title should appear in the top 10 keywords.
 2. Separate descriptive elements: "white fluffy pup" → ["white", "fluffy", "pup"] (separate keywords, not combined).
 3. Include multiple specificity levels: general ("animal", "mammal") AND specific ("Arctic Fox", "Vulpes lagopus").
+3a. SCIENTIFIC NAMES & TECHNICAL DESCRIPTORS (CRITICAL for SEO ranking - prioritize in positions 3-7):
+   - ALWAYS include scientific names when detected (e.g., "poaceae", "gramineae", "sporobolus heterolepis", "calamagrostis acutiflora")
+   - For plants: include family names (e.g., "poaceae", "gramineae") AND species names (e.g., "sporobolus heterolepis")
+   - For animals: include scientific family/genus names when applicable
+   - Include technical quality descriptors: "high resolution", "perfectly cutout", "isolated png", "cutout", "transparent png"
+   - These scientific and technical keywords should appear in positions 3-7 for maximum search visibility
+   - Examples: For grass images, include "poaceae", "gramineae" in positions 3-7
 4. For locations: include country with city/state (e.g., "Portland, Oregon, USA" → ["portland", "oregon", "usa"]).
 5. Include conceptual elements: feelings, mood, trends (e.g., "solitude", "childhood", "milestones").
 6. Include setting: "indoors", "outdoors", "day", "night", "sunny", "cloudy" (if visible).
@@ -244,18 +286,25 @@ ${isVideo ? `7. VIDEO-SPECIFIC KEYWORDS (CRITICAL for video search visibility):
 ${isVideo ? '9.' : '8.'} Include viewpoint: "high-angle view", "aerial view", "drone point of view" (if applicable).
 ${isVideo ? '10.' : '9.'} Include number of people: "one person", "three people", "nobody" (if applicable).
 ${isVideo ? '11.' : '10.'} Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
-Order keywords by importance: most important first, title words included.` : '';
+PRIORITY ORDER FOR KEYWORD RANKING (most important first):
+1. Title words (top 10)
+2. Scientific names and technical descriptors (positions 3-7)
+3. Specific subject names (species, breeds, types)
+4. General category terms
+5. Descriptive attributes (colors, sizes, styles)
+6. Setting and context
+7. Conceptual elements
+Order keywords by this importance hierarchy for maximum Adobe Stock search visibility.` : '';
   
   // Title length rules:
   // - HARD max is the user-selected titleLen (capped at 200)
   // - Minimum is at least 60 characters to ensure descriptive, complete titles
+  // - Images now get same length treatment as videos (85% of limit) for better SEO
   const titleLengthLimit = Math.min(titleLen, 200);
   const minTitleChars =
     titleLengthLimit <= 80
       ? Math.max(60, Math.floor(titleLengthLimit * 0.6)) // e.g., 70 -> 60 (minimum enforced)
-      : isVideo
-        ? Math.max(60, Math.floor(titleLengthLimit * 0.85)) // e.g., 120 -> 102 (allow longer for videos)
-        : Math.max(60, titleLengthLimit - 10); // e.g., 120 -> 110 (near-max targeting)
+      : Math.max(60, Math.floor(titleLengthLimit * 0.85)); // e.g., 120 -> 102 (allow longer for both images and videos)
   
   const generalTitleGuidance = platform !== 'adobe' ? `
 Titles should be concise and natural while still meeting the minimum length.
@@ -272,9 +321,10 @@ ${isVideo ? `VIDEO EXAMPLES:
 {"title": "Animated neon heart shapes glowing and rotating on dark background", "description": "Dynamic animated video of two intertwined neon blue heart shapes glowing and rotating against dark background.", "keywords": ["neon", "heart", "shapes", "glowing", "rotating", "animated", "dark", "background", "blue", "light", "motion", "dynamic"]}
 ` : ''}
 PHOTO/IMAGE EXAMPLES:
-{"title": "Red apple isolated on white background", "description": "Fresh red apple on white background, perfect for food photography and commercial use.", "keywords": ["apple", "red", "fruit", "fresh", "white", "background", "isolated", "food", "healthy", "commercial"]}
+{"title": "Set of frontal Prairie dropseed Sporobolus heterolepis and Calamagrostis acutiflora Karl Foerster grass isolated png on transparent background perfectly cutout high resolution", "description": "High resolution perfectly cutout set of frontal Prairie dropseed and Karl Foerster grass species isolated on transparent background.", "keywords": ["prairie", "dropseed", "sporobolus", "heterolepis", "calamagrostis", "acutiflora", "karl", "foerster", "grass", "isolated", "png", "transparent", "background", "cutout", "high", "resolution", "frontal", "set", "plants", "botany"]}
+{"title": "Red apple Malus domestica isolated on white background high resolution", "description": "Fresh red apple on white background, perfect for food photography and commercial use.", "keywords": ["apple", "malus", "domestica", "red", "fruit", "fresh", "white", "background", "isolated", "food", "healthy", "commercial", "high", "resolution"]}
 {"title": "Young woman playing catch with Jack Russel Terrier at beach", "description": "Happy woman playing with her dog on a sunny beach, showing joy and companionship.", "keywords": ["woman", "dog", "jack", "russel", "terrier", "beach", "playing", "catch", "outdoors", "sunny"]}
-{"title": "Abstract futuristic microchip circuit board design isolated", "description": "Modern technology circuit board pattern with microchips, ideal for tech and innovation themes.", "keywords": ["circuit", "board", "microchip", "technology", "abstract", "futuristic", "design", "isolated", "white", "background"]}
+{"title": "Abstract futuristic microchip circuit board design isolated png perfectly cutout", "description": "Modern technology circuit board pattern with microchips, ideal for tech and innovation themes.", "keywords": ["circuit", "board", "microchip", "technology", "abstract", "futuristic", "design", "isolated", "png", "cutout", "white", "background"]}
 
 Examples of BAD titles (avoid these):
 - "Professional high quality stock photo" (too generic, contains banned words)
@@ -399,6 +449,21 @@ This override takes precedence over everything else in this prompt (except filen
     ? `\n\n⚠️ USER-SPECIFIED FILE ATTRIBUTES (OVERRIDE ALL AI DETECTION):\n${fileAttributes.join('\n')}\n` 
     : '';
   
+  // Object names detection - pass to prompt if available
+  const objectNamesText = a.objectNames && (
+    a.objectNames.common_names.length > 0 ||
+    a.objectNames.scientific_names.length > 0 ||
+    a.objectNames.specific_types.length > 0 ||
+    a.objectNames.technical_attributes.length > 0
+  ) ? `\n\n🔍 DETECTED OBJECT NAMES (MUST BE INCLUDED IN TITLE):
+Common names: ${a.objectNames.common_names.join(', ') || 'none'}
+Scientific names: ${a.objectNames.scientific_names.join(', ') || 'none'}
+Specific types: ${a.objectNames.specific_types.join(', ') || 'none'}
+Technical attributes: ${a.objectNames.technical_attributes.join(', ') || 'none'}
+
+CRITICAL: Incorporate these detected names naturally into the title. Use scientific names when available. Include technical attributes like "high resolution", "perfectly cutout", "isolated PNG" when applicable.
+` : '';
+  
   // Filename rule - only mention if NO image is provided
   const filenameRule = hasImage
     ? '' // Don't mention filename at all when image is provided
@@ -418,7 +483,7 @@ This override takes precedence over everything else in this prompt (except filen
 ${filenameRestriction}${mandatoryOverride}${rules(a.keywordMode, a.keywordCount, a.titleLen, hasImage, a.platform, isVideo)}
 Platform: ${a.platform} (${PLATFORM_TIPS[a.platform]}).
 Asset: ${a.assetType} (${ASSET_TIPS[a.assetType]}); ext: ${a.extension}.
-${filenameRule ? `${filenameRule}\n` : ''}${fileAttributesText}${hasImage ? `${imageContext}
+${filenameRule ? `${filenameRule}\n` : ''}${fileAttributesText}${objectNamesText}${hasImage ? `${imageContext}
 - Subjects and objects
 - Colors and textures
 - Setting and background (CRITICAL: 
@@ -1171,6 +1236,12 @@ export type VisionCaptionOutput = {
   materials_textures: string;
   style: string;
   details: string[];
+  object_names?: {
+    common_names: string[];      // e.g., ["Prairie dropseed", "Karl Foerster grass"]
+    scientific_names: string[];    // e.g., ["Sporobolus heterolepis", "Calamagrostis acutiflora"]
+    specific_types: string[];      // e.g., ["Jack Russel Terrier", "Golden Retriever"]
+    technical_attributes: string[]; // e.g., ["high resolution", "perfectly cutout", "isolated PNG"]
+  };
   for_video_only?: {
     motion: string;
     camera_motion: string;
@@ -1246,9 +1317,18 @@ ANALYSIS GUIDELINES:
 7. MATERIALS_TEXTURES: Describe visible textures (smooth, rough, glossy, matte, metallic, fabric, wood grain, etc.), materials present, surface qualities
 8. STYLE: Identify if it's photography, 3D render, illustration, digital art, realism level (hyper-realistic, realistic, stylized, abstract), artistic style if applicable
 9. DETAILS: List important small details that contribute to the overall image - reflections, patterns, small objects, environmental details, atmospheric effects
-${assetType === 'video' ? `10. MOTION: Describe subject movement, speed, direction, type of motion
-11. CAMERA_MOTION: Identify camera movement (static, pan, tilt, dolly, tracking, handheld, crane, drone)
-12. PACE: Describe pacing (slow/contemplative, medium/normal, fast/dynamic)` : ''}
+10. OBJECT IDENTIFICATION (CRITICAL for SEO - this directly impacts Adobe Stock ranking):
+   - Identify SPECIFIC object names: plant species (common + scientific names), animal breeds, specific product types
+   - For plants: ALWAYS detect both common names (e.g., "Prairie dropseed") AND scientific names (e.g., "Sporobolus heterolepis")
+   - For grasses specifically: ALWAYS include family names "Poaceae" and "Gramineae" (both are valid scientific names for the grass family)
+   - For animals: detect breed names (e.g., "Jack Russel Terrier", "Golden Retriever") AND scientific names when possible
+   - For objects: identify specific types, models, or categories when clearly visible
+   - Include technical attributes: "high resolution", "perfectly cutout", "isolated PNG", "cutout", "transparent PNG"
+   - Be specific: "four types of grass" → identify each type if possible, and include scientific family names
+   - CRITICAL: Scientific names (especially family names like "Poaceae", "Gramineae") are ESSENTIAL for SEO ranking - include them in your analysis
+${assetType === 'video' ? `11. MOTION: Describe subject movement, speed, direction, type of motion
+12. CAMERA_MOTION: Identify camera movement (static, pan, tilt, dolly, tracking, handheld, crane, drone)
+13. PACE: Describe pacing (slow/contemplative, medium/normal, fast/dynamic)` : ''}
 
 Return JSON with this exact structure:
 {
@@ -1262,6 +1342,12 @@ Return JSON with this exact structure:
   "materials_textures": "Specific textures and materials visible - be precise about surface qualities",
   "style": "Artistic style identification - photo/3d/illustration, realism level, artistic style if applicable",
   "details": ["List of important small details", "that contribute to the image", "be specific and comprehensive"],
+  "object_names": {
+    "common_names": ["List of common names", "e.g., Prairie dropseed, Karl Foerster grass"],
+    "scientific_names": ["List of scientific names", "e.g., Sporobolus heterolepis, Calamagrostis acutiflora"],
+    "specific_types": ["List of specific types", "e.g., Jack Russel Terrier, Golden Retriever"],
+    "technical_attributes": ["List of technical attributes", "e.g., high resolution, perfectly cutout, isolated PNG"]
+  },
   ${assetType === 'video' ? `"for_video_only": {
     "motion": "Detailed description of subject movement - type, speed, direction",
     "camera_motion": "Specific camera movement type - pan/tilt/dolly/tracking/handheld/static/crane/drone",
@@ -1327,6 +1413,12 @@ Be extremely detailed and specific in every field.`;
       materials_textures: parsed.materials_textures || '',
       style: parsed.style || '',
       details: Array.isArray(parsed.details) ? parsed.details : [],
+      object_names: parsed.object_names ? {
+        common_names: Array.isArray(parsed.object_names.common_names) ? parsed.object_names.common_names : [],
+        scientific_names: Array.isArray(parsed.object_names.scientific_names) ? parsed.object_names.scientific_names : [],
+        specific_types: Array.isArray(parsed.object_names.specific_types) ? parsed.object_names.specific_types : [],
+        technical_attributes: Array.isArray(parsed.object_names.technical_attributes) ? parsed.object_names.technical_attributes : []
+      } : undefined,
       for_video_only: assetType === 'video' ? parsed.for_video_only : undefined
     };
   } catch (error: any) {
@@ -1341,6 +1433,7 @@ Be extremely detailed and specific in every field.`;
       materials_textures: '',
       style: '',
       details: [],
+      object_names: undefined,
       error: error?.message || 'Vision caption generation failed'
     };
   }

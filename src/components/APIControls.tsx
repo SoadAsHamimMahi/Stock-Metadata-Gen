@@ -184,6 +184,8 @@ export default function APIControls({ value, onChange }: { value: FormState; onC
                     {/* UI only exposes Scout; fall back to a generic label if something else is stored */}
                     {value.groqModel === 'meta-llama/llama-4-scout-17b-16e-instruct'
                       ? 'Llama 4 Scout 17B'
+                      : value.groqModel === 'meta-llama/llama-4-maverick-17b-128e-instruct'
+                      ? 'Llama 4 Maverick 17B'
                       : 'Groq (legacy model)'}
                   </div>
                 </div>

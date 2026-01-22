@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateWithGemini, generateWithMistral, generateWithGroq, type ModelArgs } from '@/lib/models';
 import { filenameHints, truncateByChars, isFilenameBased, scoreTitleQuality, filterFilenameBasedKeywords } from '@/lib/util';
-import { enrichKeywords, addScientificNames } from '@/lib/keyword-enrichment';
+import { enrichKeywords, addScientificNames, extractTechnicalKeywords } from '@/lib/keyword-enrichment';
 import { GeminiModelEnum, MistralModelEnum, GroqModelEnum } from '@/lib/types';
 import path from 'path';
 import { convertVectorToPng } from '@/lib/vector-convert';
@@ -873,21 +873,7 @@ export async function POST(req: NextRequest) {
         }
       }
       
-      // Enrich keywords with synonyms, related terms, and scientific names
-      const enriched = enrichKeywords(keywords, title, a.platform);
-      const withScientific = addScientificNames(enriched);
-      // Keep original order but add enriched terms, then trim to exact count
-      let finalKeywords = [...keywords, ...withScientific.filter(k => !keywords.includes(k))]
-        .slice(0, targetCount);
 
-      // Apply user-specified negative keywords (case-insensitive) as a hard filter
-      if (Array.isArray(a.negativeKeywords) && a.negativeKeywords.length > 0) {
-        const negSet = new Set(
-          a.negativeKeywords
-            .map(s => String(s).trim().toLowerCase())
-            .filter(Boolean)
-        );
-        if (negSet.size > 0) {
           finalKeywords = finalKeywords.filter(k => !negSet.has(String(k).trim().toLowerCase()));
         }
       }
