@@ -47,7 +47,6 @@ export function enrichKeywords(
     'vacation': ['holiday', 'getaway', 'trip', 'travel', 'journey'],
     'resort': ['hotel', 'spa', 'retreat', 'lodge', 'accommodation'],
     'travel': ['tourism', 'journey', 'adventure', 'exploration', 'trip'],
-    'tropical': ['exotic', 'island', 'paradise', 'caribbean', 'hawaiian'],
     'island': ['tropical', 'paradise', 'ocean', 'coastal'],
     'paradise': ['heaven', 'utopia', 'bliss', 'tropical', 'exotic'],
     
