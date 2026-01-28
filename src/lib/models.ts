@@ -257,43 +257,95 @@ Use caring, engaged language when describing people.` : '';
   const adobeKeywordGuidance = platform === 'adobe' ? `
 CRITICAL for Adobe Stock: Keyword order is the MOST IMPORTANT factor for search visibility.
 FORBIDDEN in keywords: NEVER include ANY words, numbers, IDs, hashes, codes, or alphanumeric strings from the filename (e.g., if filename contains "Whisk_2cf81f816ae2", do NOT use "whisk", "2cf81f816ae2", or any part of the filename as keywords).
+
 1. Include all important CONTENT words from the title in your keywords. Ignore stop words like "and", "with", "on", "at", "of", "the". Key nouns and meaningful adjectives from the title should appear in the top 10 keywords.
+
 2. Separate descriptive elements: "white fluffy pup" → ["white", "fluffy", "pup"] (separate keywords, not combined).
+
 3. Include multiple specificity levels: general ("animal", "mammal") AND specific ("Arctic Fox", "Vulpes lagopus").
-3a. SCIENTIFIC NAMES & TECHNICAL DESCRIPTORS (CRITICAL for SEO ranking - prioritize in positions 3-7):
-   - ALWAYS include scientific names when detected (e.g., "poaceae", "gramineae", "sporobolus heterolepis", "calamagrostis acutiflora")
-   - For plants: include family names (e.g., "poaceae", "gramineae") AND species names (e.g., "sporobolus heterolepis")
+
+4. BUYER-INTENT & USE-CASE KEYWORDS (CRITICAL - DOMINATE positions 2-25):
+   - Think about HOW buyers will use this image - what are they searching for?
+   - Include USE-CASE keywords: "beach background", "summer background", "travel destination", "vacation concept", "resort decoration", "spa background", "holiday vibe", "nature background", "wallpaper", "desktop background", "print design", "web design", "marketing material", "advertising", "social media", "blog post", "website header", "banner", "poster", "brochure"
+   - Include LONG-TAIL KEYWORD PHRASES (high-value search terms): "tropical palm tree silhouette", "beach vacation background", "summer travel concept", "luxury resort decoration", "spa wellness background", "tropical paradise wallpaper", "exotic travel destination", "island vacation concept", "coastal living design", "tropical holiday vibe", "summer beach background", "wellness spa concept", "luxury tropical resort", "exotic island paradise", "tropical nature wallpaper"
+   - Include ACTION/VERB keywords (what's happening or conveyed): "relaxing", "escaping", "traveling", "vacationing", "exploring", "discovering", "enjoying", "celebrating", "dreaming", "aspiring", "inspiring", "motivating", "healing", "rejuvenating", "unwinding", "adventuring", "wandering", "soaking", "basking", "embracing"
+   - Include STYLE/AESTHETIC keywords: "minimalist", "modern", "contemporary", "boho", "tropical decor", "island style", "coastal chic", "beach house", "resort style", "spa aesthetic", "zen design", "scandinavian", "mid-century", "rustic", "vintage", "art deco", "industrial", "farmhouse", "cottage core", "maximalist", "eclectic", "tropical modern", "island aesthetic"
+   - Include EMOTIONAL/ASPIRATIONAL keywords: "dreamy", "inspiring", "aspirational", "serene", "blissful", "peaceful", "tranquil", "calming", "soothing", "uplifting", "energizing", "refreshing", "invigorating", "romantic", "nostalgic", "hopeful", "optimistic", "joyful", "content", "fulfilled", "free", "liberated", "adventurous", "carefree"
+   - Include CONTEXTUAL keywords: "tropical paradise", "exotic travel", "beach holiday", "tropical vacation", "sunny summer", "tropical concept", "island life", "coastal living", "ocean view", "seaside", "caribbean", "hawaiian", "bali", "maldives", "santorini", "maui", "barbados", "seychelles", "fiji", "tahiti"
+   - Include MOOD/ATMOSPHERE keywords: "relaxation", "wellness", "luxury", "peaceful", "serene", "tranquil", "exotic", "paradise", "calm", "zen", "meditation", "spa day", "retreat", "escape", "bliss", "harmony", "balance", "mindfulness", "tranquility", "serenity", "peace", "stillness"
+   - Include SEASONAL keywords when relevant: "summer", "winter", "spring", "autumn", "seasonal", "summer vibes", "summer mood", "summer aesthetic", "summer collection", "summer theme", "winter escape", "spring renewal", "autumn colors"
+   - Include LIFESTYLE keywords: "vacation", "holiday", "resort", "spa", "wellness", "luxury", "eco-friendly", "natural design", "minimalist", "modern", "contemporary", "boho", "tropical decor", "island style", "beach lifestyle", "island living", "coastal lifestyle", "resort living", "vacation lifestyle"
+   - Include COMMERCIAL USE keywords: "stock photo", "royalty free", "commercial use", "business", "corporate", "branding", "marketing", "advertising", "promotional", "editorial", "print ready", "web ready", "high resolution", "professional"
+   - Include INDUSTRY keywords when relevant: "travel industry", "hospitality", "tourism", "real estate", "interior design", "fashion", "beauty", "healthcare", "wellness industry", "spa industry", "resort industry", "hotel industry", "restaurant industry", "retail", "e-commerce"
+   - Include TRENDING keywords when relevant: "aesthetic", "vibe", "mood", "core", "aesthetic", "trending", "popular", "viral", "instagram", "pinterest", "tiktok", "social media", "content creation"
+   - Examples for palm trees: "beach background", "summer background", "tropical", "vacation", "resort", "spa", "luxury", "relaxation", "wellness", "exotic travel", "tropical paradise", "holiday vibe", "palm tree silhouette", "tropical plants", "palm leaves", "exotic plants", "nature", "tropical foliage", "sunny summer", "tropical concept", "black background", "outdoor nature", "landscape", "travel destination", "vacation concept", "resort decoration", "exotic travel", "palm tree isolated", "nature background", "holiday vibe", "nature photo", "beach holiday", "tropical vacation", "tropical paradise", "palm branches", "sunny day", "relaxation", "wellness", "eco-friendly", "natural design", "isolated palm tree", "tropical nature", "spa background", "luxury", "tropical environment", "summer season"
+
+5. SCIENTIFIC NAMES & TECHNICAL DESCRIPTORS (include when applicable, but MINIMIZE - positions 25-40 only):
+   - Include scientific names when detected (e.g., "poaceae", "gramineae", "sporobolus heterolepis", "calamagrostis acutiflora")
+   - For plants: include family names (e.g., "poaceae", "gramineae") AND species names when identifiable
    - For animals: include scientific family/genus names when applicable
-   - Include technical quality descriptors: "high resolution", "perfectly cutout", "isolated png", "cutout", "transparent png"
-   - These scientific and technical keywords should appear in positions 3-7 for maximum search visibility
-   - Examples: For grass images, include "poaceae", "gramineae" in positions 3-7
-4. For locations: include country with city/state (e.g., "Portland, Oregon, USA" → ["portland", "oregon", "usa"]).
-5. Include conceptual elements: feelings, mood, trends (e.g., "solitude", "childhood", "milestones").
-6. Include setting: "indoors", "outdoors", "day", "night", "sunny", "cloudy" (if visible).
-${isVideo ? `7. VIDEO-SPECIFIC KEYWORDS (CRITICAL for video search visibility):
+   - Include technical quality descriptors ONLY if relevant: "high resolution", "perfectly cutout", "isolated png", "cutout", "transparent png", "isolated"
+   - Technical terms should NEVER dominate - they are LOW priority compared to buyer-intent keywords
+
+6. For locations: include country with city/state (e.g., "Portland, Oregon, USA" → ["portland", "oregon", "usa"]).
+
+7. Include CONCEPTUAL & MOOD elements: feelings, mood, trends (e.g., "relaxation", "wellness", "luxury", "peaceful", "serene", "tranquil", "exotic", "paradise", "solitude", "childhood", "milestones").
+
+8. Include SETTING & CONTEXT: "indoors", "outdoors", "day", "night", "sunny", "cloudy", "beach", "tropical", "resort", "spa", "vacation", "holiday" (if visible or contextually relevant).
+
+${isVideo ? `9. VIDEO-SPECIFIC KEYWORDS (CRITICAL for video search visibility):
    - Motion keywords: flying, rotating, flowing, moving, drifting, panning, tracking, etc. (describe actual motion seen)
    - Camera movement: aerial, drone, panning, tracking, static, zooming, etc. (describe camera work)
    - Video type: timelapse, slow-motion, real-time, fast-paced, etc. (only if clearly identifiable)
    - Tech keywords: ONLY include if provided in video hints (4k, 60fps, hd, etc.) - NEVER invent tech specs
    - Pacing: fast-paced, slow-motion, smooth, dynamic, etc. (describe video rhythm)
    - These video-specific keywords should appear early in the keyword list (top 15) for better search visibility
-8.` : '7.'} CRITICAL: Background keywords - be ACCURATE:
+10.` : '9.'} CRITICAL: Background keywords - be ACCURATE:
    - If background is TRANSPARENT: use ONLY "transparent background" or "isolated" - DO NOT mention ANY color (not green, not white, not any color)
    - If background is WHITE: use "white background", "isolated on white", or "on white"
-   - If background has a specific COLOR (and is not transparent): mention that color (e.g., "blue background")
+   - If background has a specific COLOR (and is not transparent): mention that color (e.g., "blue background", "black background")
    - FORBIDDEN: Never use "green background" unless the background is actually solid green (not transparent)
    - NEVER mention a background color if the background is actually transparent
-${isVideo ? '9.' : '8.'} Include viewpoint: "high-angle view", "aerial view", "drone point of view" (if applicable).
-${isVideo ? '10.' : '9.'} Include number of people: "one person", "three people", "nobody" (if applicable).
-${isVideo ? '11.' : '10.'} Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
+
+${isVideo ? '11.' : '10.'} Include viewpoint: "high-angle view", "aerial view", "drone point of view" (if applicable).
+
+${isVideo ? '12.' : '11.'} Include number of people: "one person", "three people", "nobody" (if applicable).
+
+${isVideo ? '13.' : '12.'} Include demographic info only if visible and with model consent: ethnicity, age, gender, etc.
+
 PRIORITY ORDER FOR KEYWORD RANKING (most important first):
 1. Title words (top 10)
-2. Scientific names and technical descriptors (positions 3-7)
+2. Buyer-intent & use-case keywords (positions 2-25) - DOMINATE with "beach background", "summer background", "travel destination", "vacation concept", "resort", "spa", "luxury", "relaxation", "wellness", "tropical", "exotic", "paradise", "holiday", "vacation", "wellness", "spa background", "nature background", "tropical paradise", "exotic travel", "beach holiday", "tropical vacation", "sunny summer", "tropical concept", etc.
 3. Specific subject names (species, breeds, types)
-4. General category terms
-5. Descriptive attributes (colors, sizes, styles)
-6. Setting and context
-7. Conceptual elements
+4. Scientific names and technical descriptors (positions 25-40) - MINIMIZE these, buyer-intent keywords are MUCH more important
+5. Contextual & mood keywords - "tropical", "exotic", "paradise", "peaceful", "serene", etc.
+6. Setting and context - "beach", "tropical", "outdoors", "sunny", etc.
+7. General category terms
+8. Descriptive attributes (colors, sizes, styles)
+
+🚨 ABSOLUTELY CRITICAL - KEYWORD GENERATION RULES - FOLLOW THESE EXACTLY:
+
+Think like a BUYER searching Adobe Stock - NOT like a cataloger or technical expert. Buyers search for USE-CASES, CONCEPTS, and CONTEXT, not just object names. Buyer-intent keywords MUST DOMINATE positions 2-25 for maximum search visibility and ranking. This is NON-NEGOTIABLE.
+
+⚠️ FORBIDDEN KEYWORD PATTERNS - ABSOLUTELY NEVER GENERATE THESE - THEY ARE WEAK, LOW-RANKING, AND WILL CAUSE POOR SEARCH PERFORMANCE:
+
+❌ STRICTLY FORBIDDEN - Generic single-word object names without context: "tree", "car", "person", "food", "building", "phone", "dog", "flower", "computer", "book", "chair", "cup", "pen", "shirt", "shoe", "bag", "box", "paper", "glass", "table"
+❌ STRICTLY FORBIDDEN - Generic single-word descriptors that describe WHAT something is, not HOW it's used: "green", "red", "blue", "white", "black", "large", "small", "big", "tiny", "high", "low", "isolated", "background", "nature", "abstract"
+❌ STRICTLY FORBIDDEN - Technical file format terms that buyers never search for: "png", "jpg", "cutout", "transparent", "high resolution", "vector", "illustration", "file", "image", "photo", "graphic"
+❌ STRICTLY FORBIDDEN - Scientific/technical terms that only experts use: "botany", "arbor", "flora", "foliage", "ecosystem", "taxonomy", "species", "genus", "anatomy", "physiology", "molecular", "algorithm"
+❌ STRICTLY FORBIDDEN - Counting/quantity words that add no search value: "one", "two", "three", "four", "five", "multiple", "several", "set", "group", "collection", "pair"
+❌ STRICTLY FORBIDDEN - Generic descriptive adjectives without context: "beautiful", "nice", "good", "perfect", "amazing", "great", "wonderful", "excellent", "fine", "quality"
+
+✅ REQUIRED KEYWORD PATTERNS - YOU MUST GENERATE THESE TYPES - THEY ARE HIGH-RANKING AND BUYER-FOCUSED:
+
+✅ MANDATORY - Use-case keywords that describe HOW buyers will use the image (industry, purpose, application): Examples: "business presentation", "marketing campaign", "website design", "social media post", "advertising banner", "product packaging", "brochure design", "newsletter header", "blog illustration", "app interface", "restaurant menu", "hotel decoration", "spa background", "fitness poster", "medical brochure", "education material", "travel brochure", "real estate listing", "food photography", "lifestyle concept"
+✅ MANDATORY - Emotional/aspirational keywords that connect with buyer feelings and goals: Examples: "luxury", "premium", "modern", "elegant", "professional", "friendly", "energetic", "peaceful", "inspiring", "motivational", "success", "achievement", "wellness", "relaxation", "adventure", "freedom", "innovation", "growth", "transformation", "celebration"
+✅ MANDATORY - Industry/commercial keywords for business use: Examples: "corporate", "business", "marketing", "advertising", "branding", "retail", "hospitality", "healthcare", "education", "technology", "finance", "real estate", "tourism", "fashion", "food service", "fitness industry", "beauty industry"
+✅ MANDATORY - Long-tail phrases (2-4 words) that match specific buyer searches: Combine object + context + use-case. Examples: "modern office workspace", "healthy breakfast bowl", "professional business woman", "luxury hotel lobby", "fresh organic vegetables", "urban city skyline", "tropical beach vacation", "minimalist home interior", "vintage coffee shop", "futuristic technology concept"
+✅ MANDATORY - Contextual descriptors that add meaning and specificity: Examples: "outdoor", "indoor", "studio", "natural light", "sunset", "sunrise", "daytime", "nighttime", "urban", "rural", "tropical", "arctic", "desert", "forest", "ocean", "mountain", "modern style", "vintage style", "minimalist", "luxury", "budget-friendly"
+
+KEY PRINCIPLE: Transform generic words into contextual, use-case focused keywords. Instead of "tree" → generate "tropical palm trees", "autumn maple tree", "christmas tree decoration", "bonsai tree art". Instead of "car" → generate "luxury sports car", "electric vehicle concept", "vintage car collection", "car rental service". Instead of "food" → generate "healthy breakfast bowl", "gourmet restaurant dish", "organic farm produce", "fast food packaging".
+
 Order keywords by this importance hierarchy for maximum Adobe Stock search visibility.` : '';
   
   // Title length rules:
@@ -958,9 +1010,11 @@ const groqLastCallTimes = new Map<string, number>();
 // Be conservative with Groq to avoid TPM rate limits for each key, but only
 // for the Maverick model. The Scout model is handled via small per-key queues
 // on the client side and should NOT be artificially delayed here.
-const GROQ_COOLDOWN_MS = 12000;     // 12 seconds between generations per key (Maverick only)
+const GROQ_COOLDOWN_MAVERICK_MS = 20000;     // 20 seconds between generations per key (Maverick only)
+const GROQ_COOLDOWN_SCOUT_IMAGE_MS = 7000;  // 7 seconds between generations for Scout when processing images (to prevent token limit issues)
 const GROQ_MAX_RETRIES = 3;         // 3 additional attempts after the first try
-const GROQ_RETRY_DELAY_MS = 14000;  // 14 seconds between retries
+const GROQ_RETRY_DELAY_MAVERICK_MS = 25000;  // 25 seconds between retries for Maverick
+const GROQ_RETRY_DELAY_SCOUT_MS = 14000;     // 14 seconds between retries for Scout
 
 export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
   // Use bearer token if provided and not empty, otherwise fall back to environment variable
@@ -980,16 +1034,30 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
 
   const hasImage = !!(a.imageData || a.imageUrl);
 
-  // Respect a per-key cooldown between Groq generations to avoid TPM bursts,
-  // but ONLY for the Maverick model. Scout uses a simple per-key queue on the
-  // client side (one image at a time) and should not be throttled here.
+  // Respect a per-key cooldown between Groq generations to avoid TPM/token rate limits.
+  // Maverick: Always uses cooldown. Scout: Only uses cooldown when processing images (to prevent token limit issues).
+  // Scout without images uses client-side queuing and should not be throttled here.
+  // Each key has its own separate token limit, so cooldown is tracked per-key.
   if (!isScoutModel) {
+    // Maverick model: Always use cooldown
     const lastTime = groqLastCallTimes.get(keyId);
     if (lastTime && lastTime > 0) {
       const elapsed = Date.now() - lastTime;
-      if (elapsed < GROQ_COOLDOWN_MS) {
-        const wait = GROQ_COOLDOWN_MS - elapsed;
-        console.log(`⏳ Groq cooldown for key ${keyId.substring(0, 8)}...: waiting ${wait}ms before next generation`);
+      if (elapsed < GROQ_COOLDOWN_MAVERICK_MS) {
+        const wait = GROQ_COOLDOWN_MAVERICK_MS - elapsed;
+        console.log(`⏳ Groq cooldown (Maverick) for key ${keyId.substring(0, 8)}...: waiting ${wait}ms before next generation`);
+        await new Promise(resolve => setTimeout(resolve, wait));
+      }
+    }
+  } else if (hasImage) {
+    // Scout model: Only use cooldown when processing images (to prevent token limit issues)
+    // Each key from different Gmail accounts has its own 300K token limit
+    const lastTime = groqLastCallTimes.get(keyId);
+    if (lastTime && lastTime > 0) {
+      const elapsed = Date.now() - lastTime;
+      if (elapsed < GROQ_COOLDOWN_SCOUT_IMAGE_MS) {
+        const wait = GROQ_COOLDOWN_SCOUT_IMAGE_MS - elapsed;
+        console.log(`⏳ Groq cooldown (Scout with image) for key ${keyId.substring(0, 8)}...: waiting ${wait}ms before next generation to avoid token limits`);
         await new Promise(resolve => setTimeout(resolve, wait));
       }
     }
@@ -1055,8 +1123,9 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
   for (let attempt = 0; attempt <= GROQ_MAX_RETRIES; attempt++) {
     try {
       if (attempt > 0) {
-        console.warn(`⚠ Groq retry attempt ${attempt}/${GROQ_MAX_RETRIES} after previous failure. Waiting ${GROQ_RETRY_DELAY_MS}ms...`);
-        await new Promise(resolve => setTimeout(resolve, GROQ_RETRY_DELAY_MS));
+        const retryDelay = isScoutModel ? GROQ_RETRY_DELAY_SCOUT_MS : GROQ_RETRY_DELAY_MAVERICK_MS;
+        console.warn(`⚠ Groq retry attempt ${attempt}/${GROQ_MAX_RETRIES} after previous failure. Waiting ${retryDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
 
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -1075,17 +1144,50 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
 
         const error: any = new Error(baseMessage);
         error.status = res.status;
+        error.errorText = errorText; // Store full error text for detection
 
-        // Decide if we should retry this error
+        // Detect TPD (tokens per day) errors - these are daily quota limits, NOT retryable
         const status = res.status;
         const lowerText = errorText.toLowerCase();
+        const isTPDError = status === 429 && (
+          lowerText.includes('tokens per day') ||
+          lowerText.includes('tpd') ||
+          (lowerText.includes('daily') && lowerText.includes('limit'))
+        );
+
+        // TPD errors are permanent until daily quota resets - don't retry
+        if (isTPDError) {
+          error.isTPDError = true;
+          error.isQuotaExhausted = true;
+          // Don't retry - this key's daily quota is exhausted
+          // Update last call time for cooldown tracking (Maverick always, Scout only with images)
+          if (!isScoutModel || hasImage) {
+            groqLastCallTimes.set(keyId, Date.now());
+          }
+          const tpdMessage = `Daily token quota exhausted for this API key. The quota resets daily. Please use a different key or wait until the quota resets. Original error: ${baseMessage}`;
+          if (a.imageData) {
+            return { 
+              title: '', 
+              description: '', 
+              keywords: [], 
+              error: tpdMessage
+            };
+          }
+          return { 
+            title: '', 
+            description: '', 
+            keywords: [], 
+            error: tpdMessage
+          };
+        }
+
+        // Decide if this is a retryable error (temporary rate limits, server errors)
         const isRetryable = 
-          status === 429 || // rate limit / TPM
+          (status === 429 && !isTPDError) || // Temporary rate limit (not TPD)
           status === 500 ||
           status === 502 ||
           status === 503 ||
           status === 504 ||
-          lowerText.includes('rate limit') ||
           lowerText.includes('temporarily') ||
           lowerText.includes('overloaded') ||
           lowerText.includes('try again');
@@ -1096,7 +1198,8 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
         }
 
         // Non-retryable error or out of retries: return structured error/fallback
-        if (!isScoutModel) {
+        // Update last call time for cooldown tracking (Maverick always, Scout only with images)
+        if (!isScoutModel || hasImage) {
           groqLastCallTimes.set(keyId, Date.now());
         }
         if (a.imageData) {
@@ -1119,7 +1222,10 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
         if (a.imageData && safeTitle.length < 10) {
           console.warn(`⚠ WARNING: Image was provided but title is very short or empty. Groq may not have analyzed the image.`);
           if (safeTitle.length < 5) {
-            groqLastCallTimes.set(keyId, Date.now());
+            // Update last call time for cooldown tracking (Maverick always, Scout only with images)
+            if (!isScoutModel || hasImage) {
+              groqLastCallTimes.set(keyId, Date.now());
+            }
             return { 
               title: '', 
               description: '', 
@@ -1128,13 +1234,15 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
             };
           }
         }
-        if (!isScoutModel) {
+        // Update last call time for cooldown tracking (Maverick always, Scout only with images)
+        if (!isScoutModel || hasImage) {
           groqLastCallTimes.set(keyId, Date.now());
         }
         return parsed;
       } catch (parseError: any) {
         console.error('❌ JSON parse error:', parseError?.message);
-        if (!isScoutModel) {
+        // Update last call time for cooldown tracking (Maverick always, Scout only with images)
+        if (!isScoutModel || hasImage) {
           groqLastCallTimes.set(keyId, Date.now());
         }
         if (a.imageData) {
@@ -1176,7 +1284,8 @@ export async function generateWithGroq(a: ModelArgs): Promise<ModelOut> {
   }
 
   // If we reach here, all retries have failed
-  if (!isScoutModel) {
+  // Update last call time for cooldown tracking (Maverick always, Scout only with images)
+  if (!isScoutModel || hasImage) {
     groqLastCallTimes.set(keyId, Date.now());
   }
   const finalMessage = `Groq API request failed after ${GROQ_MAX_RETRIES + 1} attempt(s): ${lastError?.message || 'Unknown error'}`;

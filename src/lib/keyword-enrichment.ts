@@ -32,12 +32,30 @@ export function enrichKeywords(
     'white': ['ivory', 'snow', 'pure'],
     'black': ['ebony', 'charcoal', 'dark'],
     
-    // Nature
+    // Nature & Tropical
     'tree': ['forest', 'woodland', 'nature'],
+    'palm': ['palm tree', 'coconut palm', 'tropical tree', 'palm frond'],
+    'tropical': ['exotic', 'island', 'paradise', 'caribbean', 'hawaiian'],
+    'beach': ['shore', 'coast', 'seaside', 'oceanfront', 'seashore'],
     'flower': ['bloom', 'blossom', 'petal'],
     'mountain': ['peak', 'summit', 'hill'],
-    'ocean': ['sea', 'water', 'marine'],
-    'beach': ['shore', 'coast', 'seaside'],
+    'ocean': ['sea', 'water', 'marine', 'aquatic'],
+    'nature': ['outdoor', 'natural', 'wildlife', 'environment'],
+    'landscape': ['scenery', 'vista', 'view', 'panorama'],
+    
+    // Travel & Vacation
+    'vacation': ['holiday', 'getaway', 'trip', 'travel', 'journey'],
+    'resort': ['hotel', 'spa', 'retreat', 'lodge', 'accommodation'],
+    'travel': ['tourism', 'journey', 'adventure', 'exploration', 'trip'],
+    'tropical': ['exotic', 'island', 'paradise', 'caribbean', 'hawaiian'],
+    'island': ['tropical', 'paradise', 'ocean', 'coastal'],
+    'paradise': ['heaven', 'utopia', 'bliss', 'tropical', 'exotic'],
+    
+    // Wellness & Lifestyle
+    'wellness': ['health', 'wellbeing', 'self-care', 'mindfulness'],
+    'spa': ['wellness', 'relaxation', 'retreat', 'therapy'],
+    'relaxation': ['calm', 'peace', 'tranquility', 'serenity', 'zen'],
+    'luxury': ['premium', 'exclusive', 'high-end', 'deluxe', 'upscale'],
     
     // Technology
     'computer': ['pc', 'laptop', 'device'],
@@ -58,6 +76,11 @@ export function enrichKeywords(
     'office': ['workspace', 'business', 'corporate'],
     'meeting': ['conference', 'discussion', 'business'],
     'team': ['group', 'collaboration', 'work'],
+    
+    // Background & Design
+    'background': ['backdrop', 'wallpaper', 'texture', 'pattern'],
+    'isolated': ['cutout', 'transparent', 'removed', 'extracted'],
+    'silhouette': ['outline', 'shadow', 'shape', 'profile'],
   };
   
   // Add related terms
@@ -113,10 +136,140 @@ export function enrichKeywords(
   }
   
   // Platform-specific enrichment
-  // NOTE: We intentionally do NOT inject generic "conceptual" keywords (e.g., commercial/marketing)
-  // because they reduce precision and can look spammy. Keywords should reflect visible content.
+  if (platform === 'adobe') {
+    // Adobe Stock: Focus on buyer-intent and commercial use keywords
+    const buyerIntentTerms = ['commercial use', 'royalty free', 'stock photo', 'business', 'marketing'];
+    for (const term of buyerIntentTerms) {
+      if (!existing.has(term) && enriched.length < 60) {
+        enriched.push(term);
+        existing.add(term);
+      }
+    }
+  }
   
   return enriched;
+}
+
+/**
+ * Generate long-tail keyword phrases from existing keywords
+ * Long-tail keywords are multi-word phrases that buyers actually search for
+ */
+export function generateLongTailKeywords(
+  keywords: string[],
+  title: string,
+  platform: 'general' | 'adobe' | 'shutterstock'
+): string[] {
+  const longTail: string[] = [];
+  const existing = new Set(keywords.map(k => k.toLowerCase()));
+  const titleLower = title.toLowerCase();
+  
+  // Common modifiers that create valuable long-tail keywords
+  const modifiers = {
+    background: ['wallpaper', 'texture', 'pattern', 'backdrop'],
+    concept: ['idea', 'theme', 'mood', 'aesthetic', 'vibe'],
+    destination: ['location', 'place', 'spot', 'venue'],
+    design: ['style', 'decor', 'aesthetic', 'theme'],
+    lifestyle: ['living', 'life', 'experience', 'culture'],
+    vacation: ['holiday', 'getaway', 'trip', 'escape'],
+    tropical: ['island', 'paradise', 'exotic', 'caribbean'],
+    beach: ['coastal', 'seaside', 'oceanfront', 'shoreline'],
+    nature: ['outdoor', 'natural', 'wildlife', 'environment'],
+    wellness: ['health', 'wellbeing', 'self-care', 'mindfulness'],
+    luxury: ['premium', 'exclusive', 'high-end', 'deluxe'],
+    spa: ['wellness', 'relaxation', 'retreat', 'therapy'],
+  };
+  
+  // Generate long-tail combinations
+  for (const keyword of keywords) {
+    const lower = keyword.toLowerCase();
+    
+    // Check if keyword matches any modifier category
+    for (const [category, terms] of Object.entries(modifiers)) {
+      if (lower.includes(category) || category.includes(lower)) {
+        // Create combinations with related terms
+        for (const term of terms) {
+          const phrase1 = `${keyword} ${term}`;
+          const phrase2 = `${term} ${keyword}`;
+          
+          if (!existing.has(phrase1.toLowerCase()) && phrase1.length < 40) {
+            longTail.push(phrase1);
+            existing.add(phrase1.toLowerCase());
+          }
+          if (!existing.has(phrase2.toLowerCase()) && phrase2.length < 40) {
+            longTail.push(phrase2);
+            existing.add(phrase2.toLowerCase());
+          }
+        }
+      }
+    }
+    
+    // Generate common long-tail patterns (only for meaningful keywords)
+    if (keyword.length >= 3 && keyword.length <= 20) {
+      const commonPatterns = [
+        `${keyword} background`,
+        `${keyword} concept`,
+        `${keyword} design`,
+        `${keyword} wallpaper`,
+        `${keyword} isolated`,
+        `${keyword} silhouette`,
+        `${keyword} vector`,
+      ];
+      
+      for (const pattern of commonPatterns) {
+        if (!existing.has(pattern.toLowerCase()) && pattern.length < 40) {
+          longTail.push(pattern);
+          existing.add(pattern.toLowerCase());
+        }
+      }
+    }
+  }
+  
+  // Generate multi-keyword combinations (combine 2-3 keywords for high-value phrases)
+  const highValueKeywords = keywords.slice(0, 15); // Focus on top keywords
+  for (let i = 0; i < Math.min(10, highValueKeywords.length - 1); i++) {
+    for (let j = i + 1; j < Math.min(i + 3, highValueKeywords.length); j++) {
+      const kw1 = highValueKeywords[i];
+      const kw2 = highValueKeywords[j];
+      
+      // Only combine if both keywords are meaningful
+      if (kw1.length >= 3 && kw2.length >= 3) {
+        const combinations = [
+          `${kw1} ${kw2}`,
+          `${kw2} ${kw1}`,
+        ];
+        
+        for (const combo of combinations) {
+          if (!existing.has(combo.toLowerCase()) && combo.length < 40 && combo.split(' ').length <= 3) {
+            longTail.push(combo);
+            existing.add(combo.toLowerCase());
+          }
+        }
+      }
+    }
+  }
+  
+  // Platform-specific long-tail keywords
+  if (platform === 'adobe') {
+    const adobePatterns = [
+      'commercial use',
+      'royalty free',
+      'stock photo',
+      'business use',
+      'marketing material',
+      'advertising design',
+      'print ready',
+      'web ready',
+    ];
+    
+    for (const pattern of adobePatterns) {
+      if (!existing.has(pattern.toLowerCase())) {
+        longTail.push(pattern);
+        existing.add(pattern.toLowerCase());
+      }
+    }
+  }
+  
+  return longTail.slice(0, 20); // Limit to top 20 long-tail keywords
 }
 
 /**

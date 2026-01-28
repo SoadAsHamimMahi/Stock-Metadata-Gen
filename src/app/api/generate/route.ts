@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateWithGemini, generateWithMistral, generateWithGroq, type ModelArgs } from '@/lib/models';
 import { filenameHints, truncateByChars, isFilenameBased, scoreTitleQuality, filterFilenameBasedKeywords } from '@/lib/util';
-import { enrichKeywords, addScientificNames, extractTechnicalKeywords } from '@/lib/keyword-enrichment';
+import { enrichKeywords, addScientificNames, extractTechnicalKeywords, generateLongTailKeywords } from '@/lib/keyword-enrichment';
 import { GeminiModelEnum, MistralModelEnum, GroqModelEnum } from '@/lib/types';
 import path from 'path';
 import { convertVectorToPng } from '@/lib/vector-convert';
@@ -820,6 +820,44 @@ export async function POST(req: NextRequest) {
       const targetCount = a.keywordMode === 'fixed' ? a.keywordCount : AUTO_KEYWORD_CAP;
       const requestedCount = targetCount;
       let keywords = normalizeKeywords(rawKeywords, requestedCount, seeds, a.negativeKeywords);
+      
+      // Apply keyword enrichment: add synonyms, related terms, and long-tail keywords
+      if (keywords.length > 0) {
+        // Step 1: Enrich with synonyms and related terms
+        keywords = enrichKeywords(keywords, title, a.platform);
+        
+        // Step 2: Add scientific names (for plants/animals)
+        keywords = addScientificNames(keywords);
+        
+        // Step 3: Extract technical keywords from title
+        keywords = extractTechnicalKeywords(keywords, title);
+        
+        // Step 4: Generate long-tail keyword phrases (high-value search terms)
+        const longTailKeywords = generateLongTailKeywords(keywords, title, a.platform);
+        
+        // Merge long-tail keywords with existing keywords, prioritizing buyer-intent ones
+        const existingSet = new Set(keywords.map(k => k.toLowerCase()));
+        const newLongTail = longTailKeywords
+          .filter(lt => !existingSet.has(lt.toLowerCase()) && lt.length < 40)
+          .slice(0, Math.min(15, targetCount - keywords.length));
+        
+        // Insert long-tail keywords strategically (after top 10, before position 25)
+        if (newLongTail.length > 0) {
+          const top10 = keywords.slice(0, 10);
+          const after10 = keywords.slice(10);
+          // Insert long-tail keywords in positions 11-25 range
+          const insertPos = Math.min(15, after10.length);
+          keywords = [
+            ...top10,
+            ...newLongTail.slice(0, insertPos),
+            ...after10,
+            ...newLongTail.slice(insertPos)
+          ].slice(0, targetCount);
+        }
+        
+        // Re-normalize to ensure no duplicates and proper formatting
+        keywords = normalizeKeywords(keywords, targetCount, seeds, a.negativeKeywords);
+      }
       
       // Post-processing: Filter out filename-based keywords when image is provided
       if (imageData && keywords.length > 0) {

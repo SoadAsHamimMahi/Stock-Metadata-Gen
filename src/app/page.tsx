@@ -699,13 +699,17 @@ export default function Page() {
         const errorData = await res.json().catch(() => ({}));
         const errorMsg = errorData.message || errorData.error || `Failed to generate metadata for ${file.name}`;
         
-        // Check if this is a quota exhaustion error
+        // Check if this is a quota exhaustion error (including TPD - tokens per day)
         const isQuotaExhausted = res.status === 429 && (
           errorMsg.toLowerCase().includes('quota') ||
           errorMsg.toLowerCase().includes('exceeded') ||
           errorMsg.toLowerCase().includes('free_tier') ||
           errorMsg.toLowerCase().includes('rate limit exceeded') ||
-          errorData.error?.message?.toLowerCase().includes('quota')
+          errorMsg.toLowerCase().includes('tokens per day') ||
+          errorMsg.toLowerCase().includes('tpd') ||
+          errorData.error?.message?.toLowerCase().includes('quota') ||
+          errorData.error?.message?.toLowerCase().includes('tokens per day') ||
+          errorData.error?.message?.toLowerCase().includes('tpd')
         );
         
         // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
@@ -941,13 +945,17 @@ export default function Page() {
       unsubscribeCallbacks.delete(file.name);
       console.error(`Error processing ${file.name}:`, fileError);
       
-      // Check if this is a quota exhaustion error in the catch block
+      // Check if this is a quota exhaustion error in the catch block (including TPD - tokens per day)
       const errorMsg = fileError.message || 'Unknown error';
       const isQuotaExhausted = fileError?.status === 429 && (
         errorMsg.toLowerCase().includes('quota') ||
         errorMsg.toLowerCase().includes('exceeded') ||
         errorMsg.toLowerCase().includes('free_tier') ||
-        errorMsg.toLowerCase().includes('rate limit exceeded')
+        errorMsg.toLowerCase().includes('rate limit exceeded') ||
+        errorMsg.toLowerCase().includes('tokens per day') ||
+        errorMsg.toLowerCase().includes('tpd') ||
+        fileError?.isTPDError ||
+        fileError?.isQuotaExhausted
       );
       
       // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
@@ -1174,13 +1182,18 @@ export default function Page() {
         };
         
         // Start workers in parallel, each with its own API key
-        // For Groq, allow parallel workers (up to 5) so multiple accounts/orgs can be used
-        const maxGroqWorkers = 5;
+        // For Groq Scout with images: reduce workers to 3 to avoid token limit issues (each image can be 10K-20K tokens)
+        // For Groq Maverick or Groq without images: allow up to 5 workers
+        const hasImageOrVideo = files.some(f => f.file && (isImageFile(f.file) || isVideoFile(f.file)));
+        const isScoutWithImages = form.model.provider === 'groq' && 
+                                  form.groqModel === 'meta-llama/llama-4-scout-17b-16e-instruct' && 
+                                  hasImageOrVideo;
+        const maxGroqWorkers = isScoutWithImages ? 3 : 5; // Reduce to 3 workers for Scout with images to prevent token limits
         const numWorkers =
           form.model.provider === 'groq'
             ? Math.min(maxGroqWorkers, MAX_CONCURRENT_WORKERS, files.length, availableKeys)
             : Math.min(MAX_CONCURRENT_WORKERS, files.length, availableKeys);
-        console.log(`⚡ Starting ${numWorkers} parallel workers with ${availableKeys} selected key(s) for provider ${form.model.provider}`);
+        console.log(`⚡ Starting ${numWorkers} parallel workers with ${availableKeys} selected key(s) for provider ${form.model.provider}${isScoutWithImages ? ' (Scout with images - reduced workers to prevent token limits)' : ''}`);
         
         await Promise.all(
           Array.from({ length: numWorkers }, (_, i) => worker(i))
@@ -1516,13 +1529,17 @@ export default function Page() {
         const errorData = await res.json().catch(() => ({}));
         const errorMsg = errorData.message || errorData.error || `Failed to regenerate metadata for ${file.name}`;
         
-        // Check if this is a quota exhaustion error
+        // Check if this is a quota exhaustion error (including TPD - tokens per day)
         const isQuotaExhausted = res.status === 429 && (
           errorMsg.toLowerCase().includes('quota') ||
           errorMsg.toLowerCase().includes('exceeded') ||
           errorMsg.toLowerCase().includes('free_tier') ||
           errorMsg.toLowerCase().includes('rate limit exceeded') ||
-          errorData.error?.message?.toLowerCase().includes('quota')
+          errorMsg.toLowerCase().includes('tokens per day') ||
+          errorMsg.toLowerCase().includes('tpd') ||
+          errorData.error?.message?.toLowerCase().includes('quota') ||
+          errorData.error?.message?.toLowerCase().includes('tokens per day') ||
+          errorData.error?.message?.toLowerCase().includes('tpd')
         );
         
         // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
@@ -1663,7 +1680,7 @@ export default function Page() {
             if (idx >= 0) {
               updated[idx] = {
                 ...updated[idx],
-                title: `[ERROR] ${data.error}`,
+                title: isPromptMode ? '' : `[ERROR] ${data.error}`, // Empty title for prompt mode
                 error: data.error
               };
             }
@@ -1732,7 +1749,11 @@ export default function Page() {
         errorMsg.toLowerCase().includes('quota') ||
         errorMsg.toLowerCase().includes('exceeded') ||
         errorMsg.toLowerCase().includes('free_tier') ||
-        errorMsg.toLowerCase().includes('rate limit exceeded')
+        errorMsg.toLowerCase().includes('rate limit exceeded') ||
+        errorMsg.toLowerCase().includes('tokens per day') ||
+        errorMsg.toLowerCase().includes('tpd') ||
+        fileError?.isTPDError ||
+        fileError?.isQuotaExhausted
       );
       
       // If quota exhausted and using parallel mode with assigned key, mark it as exhausted
@@ -2147,13 +2168,18 @@ export default function Page() {
         };
         
         // Start workers in parallel, each with its own API key
-        // For Groq, allow parallel workers (up to 5) so multiple accounts/orgs can be used
-        const maxGroqWorkers = 5;
+        // For Groq Scout with images: reduce workers to 3 to avoid token limit issues (each image can be 10K-20K tokens)
+        // For Groq Maverick or Groq without images: allow up to 5 workers
+        const hasImageOrVideo = filesWithResults.some(f => f.file && (isImageFile(f.file) || isVideoFile(f.file)));
+        const isScoutWithImages = form.model.provider === 'groq' && 
+                                  form.groqModel === 'meta-llama/llama-4-scout-17b-16e-instruct' && 
+                                  hasImageOrVideo;
+        const maxGroqWorkers = isScoutWithImages ? 3 : 5; // Reduce to 3 workers for Scout with images to prevent token limits
         const numWorkers =
           form.model.provider === 'groq'
             ? Math.min(maxGroqWorkers, MAX_CONCURRENT_WORKERS, filesWithResults.length, availableKeys)
             : Math.min(MAX_CONCURRENT_WORKERS, filesWithResults.length, availableKeys);
-        console.log(`⚡ Starting ${numWorkers} parallel regenerate workers with ${availableKeys} selected key(s) for provider ${form.model.provider}`);
+        console.log(`⚡ Starting ${numWorkers} parallel regenerate workers with ${availableKeys} selected key(s) for provider ${form.model.provider}${isScoutWithImages ? ' (Scout with images - reduced workers to prevent token limits)' : ''}`);
         
         await Promise.all(
           Array.from({ length: numWorkers }, (_, i) => worker(i))
@@ -2204,10 +2230,16 @@ export default function Page() {
     if (form.parallelMode) {
       keyPoolManager.resetExhaustedKeys();
     }
-    // Find all files that have error rows
+    // Find all files that have actual errors (not warnings, not files with generated prompts)
     const failedFiles = files.filter(f => {
       const row = rows.find(r => r.filename === f.name);
-      return row?.error; // Only files with errors
+      // Only count actual errors (not word count warnings)
+      if (!row?.error) return false;
+      // Word count warnings are not failures (prompt was generated)
+      if (row.error.startsWith('Warning:')) return false;
+      // For prompt mode: only count as failed if no prompt was generated
+      if (row.generatedPrompt) return false;
+      return true;
     });
     
     if (failedFiles.length === 0) {
@@ -2317,8 +2349,14 @@ export default function Page() {
         };
         
         // Start multiple workers in parallel, each with its own API key
-        const numWorkers = Math.min(MAX_CONCURRENT_WORKERS, failedFiles.length, availableKeys);
-        console.log(`⚡ Starting ${numWorkers} parallel regenerate failed workers with ${availableKeys} selected key(s)`);
+        // For Groq Scout with images: reduce workers to 3 to avoid token limit issues
+        const hasImageOrVideo = failedFiles.some(f => f.file && (isImageFile(f.file) || isVideoFile(f.file)));
+        const isScoutWithImages = form.model.provider === 'groq' && 
+                                  form.groqModel === 'meta-llama/llama-4-scout-17b-16e-instruct' && 
+                                  hasImageOrVideo;
+        const maxWorkers = isScoutWithImages ? 3 : MAX_CONCURRENT_WORKERS;
+        const numWorkers = Math.min(maxWorkers, failedFiles.length, availableKeys);
+        console.log(`⚡ Starting ${numWorkers} parallel regenerate failed workers with ${availableKeys} selected key(s)${isScoutWithImages ? ' (Scout with images - reduced workers to prevent token limits)' : ''}`);
         
         await Promise.all(
           Array.from({ length: numWorkers }, (_, i) => worker(i))
