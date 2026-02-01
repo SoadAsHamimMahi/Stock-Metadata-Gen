@@ -178,7 +178,7 @@ TECHNICAL DESCRIPTORS (include when applicable):
   * "High resolution perfectly cutout Calamagrostis acutiflora on transparent background"
 
 ${isVideo ? `VIDEO-SPECIFIC TITLE GUIDANCE (MANDATORY for videos):
-- CRITICAL: Minimum title length is 60 characters. For videos, longer titles (up to ${titleLen} chars) are ACCEPTABLE and ENCOURAGED for better description.
+- CRITICAL: Minimum title length is 65 characters. For videos, longer titles (up to ${titleLen} chars) are ACCEPTABLE and ENCOURAGED for better description.
 - Structure: [Subject] [specific motion verb] [camera movement] [setting] [tech tags if provided]
 - NEVER use generic "moving" - use specific verbs: glowing, rotating, pulsing, flowing, drifting, etc.
 - ALWAYS include camera work: "static camera", "panning shot", "tracking shot", etc. (or explicitly state if camera doesn't move)
@@ -350,13 +350,13 @@ Order keywords by this importance hierarchy for maximum Adobe Stock search visib
   
   // Title length rules:
   // - HARD max is the user-selected titleLen (capped at 200)
-  // - Minimum is at least 60 characters to ensure descriptive, complete titles
+  // - Minimum is at least 65 characters to ensure detailed, complete titles
   // - Images now get same length treatment as videos (85% of limit) for better SEO
   const titleLengthLimit = Math.min(titleLen, 200);
   const minTitleChars =
     titleLengthLimit <= 80
-      ? Math.max(60, Math.floor(titleLengthLimit * 0.6)) // e.g., 70 -> 60 (minimum enforced)
-      : Math.max(60, Math.floor(titleLengthLimit * 0.85)); // e.g., 120 -> 102 (allow longer for both images and videos)
+      ? Math.max(65, Math.floor(titleLengthLimit * 0.6)) // e.g., 70 -> 65 (minimum enforced)
+      : Math.max(65, Math.floor(titleLengthLimit * 0.85)); // e.g., 120 -> 102 (allow longer for both images and videos)
   
   const generalTitleGuidance = platform !== 'adobe' ? `
 Titles should be concise and natural while still meeting the minimum length.
@@ -383,7 +383,7 @@ Examples of BAD titles (avoid these):
 - "Image of something" (too vague, filename-based)
 - "Design element graphic" (too generic, lacks specificity)
 ${isVideo ? `BAD VIDEO TITLES (avoid these):
-- "Neon heart shapes moving in darkness" (too short: 36 chars, needs 60+ chars; generic "moving", missing camera work)
+- "Neon heart shapes moving in darkness" (too short: 36 chars, needs 65+ chars; generic "moving", missing camera work)
 - "Video of mountains" (too vague, missing motion/camera description)
 - "Stock video footage" (too generic, contains banned words)
 - "4K video" (tech tag without content description)
@@ -410,7 +410,7 @@ PHOTO/IMAGE EXAMPLES:
   return `
 Return PURE JSON only: {"title": string, "description": string, "keywords": string[]}.
 ${imageInstructions}
-Title: MUST be COMPLETE and between ${minTitleChars} and ${titleLengthLimit} characters (hard requirement).
+Title: Give a detailed title with a minimum of 65 characters and a maximum of ${titleLengthLimit} characters (website setting). MUST be COMPLETE and between ${minTitleChars} and ${titleLengthLimit} characters (hard requirement).
 HARD LENGTH REQUIREMENTS:
 - NEVER exceed ${titleLengthLimit} characters (counting spaces). If your draft is longer, rewrite it shorter BEFORE returning JSON.
 - NEVER return a title shorter than ${minTitleChars} characters. If your draft title is shorter, expand it with more specific, concrete detail until it reaches at least ${minTitleChars} characters without adding meaningless filler.
